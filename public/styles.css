@@ -1,0 +1,469 @@
+:root {
+  color-scheme: dark;
+  --bg: #111418;
+  --panel: #181c22;
+  --panel-2: #20262e;
+  --line: #303843;
+  --text: #eef2f6;
+  --muted: #98a3b0;
+  --accent: #6dd6b3;
+  --accent-2: #8aa4ff;
+  --danger: #f57878;
+  --warn: #ffca70;
+  --ok: #86e89e;
+  --input: #0d1014;
+  font-family: Inter, ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  min-height: 34px;
+  padding: 0 12px;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.topbar {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  background: #15191f;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 20px;
+  line-height: 1.15;
+}
+
+h2 {
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.topbar p,
+#fileMeta,
+.status-line {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.project-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  max-width: 940px;
+}
+
+.project-form input {
+  flex: 1;
+  min-width: 240px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: var(--input);
+  color: var(--text);
+}
+
+.target-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 9px;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.target-mode label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ssh-panel {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.7fr) minmax(220px, 1fr) minmax(220px, 1fr) minmax(180px, 0.9fr) minmax(180px, 0.9fr) auto;
+  gap: 10px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--line);
+  background: #12171d;
+}
+
+.ssh-panel[hidden] {
+  display: none;
+}
+
+.ssh-panel label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ssh-panel input:not([type]),
+.ssh-panel input[type="text"] {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 9px;
+  background: var(--input);
+  color: var(--text);
+}
+
+.ssh-panel .sudo-toggle {
+  display: inline-flex;
+  align-items: end;
+  grid-auto-flow: column;
+  gap: 6px;
+  padding-bottom: 8px;
+  white-space: nowrap;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 300px minmax(520px, 1fr) minmax(320px, 28vw);
+  height: calc(100vh - 72px);
+}
+
+body.ssh-target .layout {
+  height: calc(100vh - 125px);
+}
+
+.sidebar,
+.docs-panel {
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+  min-width: 0;
+}
+
+.docs-panel {
+  border-right: 0;
+  border-left: 1px solid var(--line);
+  padding: 14px;
+  overflow: auto;
+}
+
+.docs-panel[hidden] {
+  display: none;
+}
+
+.docs-panel h2 {
+  margin-bottom: 10px;
+}
+
+.docs-panel pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #d3dae3;
+  margin: 0;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.sidebar {
+  overflow: auto;
+}
+
+.sidebar-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.file-list {
+  padding: 10px;
+}
+
+.group-title {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  margin: 12px 0 6px;
+  text-transform: uppercase;
+}
+
+.file-button {
+  width: 100%;
+  min-height: auto;
+  padding: 9px;
+  margin: 0 0 6px;
+  text-align: left;
+  background: transparent;
+}
+
+.file-button.active {
+  border-color: var(--accent);
+  background: #1d2a29;
+}
+
+.file-path {
+  display: block;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-stats {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.editor-shell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: #12161b;
+}
+
+.editor-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  background: #151a20;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.status-line {
+  min-height: 26px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.status-line.error {
+  color: var(--danger);
+}
+
+.status-line.dirty {
+  color: var(--warn);
+}
+
+.status-line.ok {
+  color: var(--ok);
+}
+
+.empty-state {
+  margin: auto;
+  color: var(--muted);
+}
+
+.rows {
+  overflow: auto;
+  padding: 12px 16px 26px;
+}
+
+.env-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.75fr) minmax(260px, 1fr) minmax(220px, 0.8fr) 92px;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #232a33;
+  align-items: start;
+}
+
+.env-row.no-underlay {
+  grid-template-columns: minmax(220px, 0.75fr) minmax(260px, 1fr) 92px;
+}
+
+.key {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 13px;
+  color: #f0f4f7;
+  word-break: break-word;
+}
+
+.hint {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.value-wrap {
+  min-width: 0;
+}
+
+.value-wrap textarea {
+  width: 100%;
+  min-height: 38px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px;
+  background: var(--input);
+  color: var(--text);
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 13px;
+}
+
+.value-wrap textarea.changed {
+  border-color: var(--warn);
+}
+
+.underlay {
+  min-height: 38px;
+  padding: 8px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  color: #bdc6d1;
+  background: #111820;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.status-set {
+  background: #173825;
+  color: var(--ok);
+}
+
+.status-empty {
+  background: #392c18;
+  color: var(--warn);
+}
+
+.status-missing {
+  background: #381b1b;
+  color: var(--danger);
+}
+
+@media (max-width: 1100px) {
+  .layout {
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+
+  .docs-panel {
+    display: none;
+  }
+
+  .env-row,
+  .env-row.no-underlay {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    height: auto;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .project-form {
+    max-width: none;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .ssh-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .layout {
+    height: auto;
+    min-height: calc(100vh - 120px);
+    grid-template-columns: 1fr;
+  }
+
+  body.ssh-target .layout {
+    height: auto;
+  }
+
+  .sidebar {
+    max-height: 280px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .editor-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .toolbar-actions {
+    justify-content: flex-start;
+  }
+}

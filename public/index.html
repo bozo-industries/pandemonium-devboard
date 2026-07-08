@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Env Helper</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Env Helper</h1>
+        <p id="projectSummary">Local Pandemonium secrets</p>
+      </div>
+      <form id="projectForm" class="project-form">
+        <div class="target-mode" role="radiogroup" aria-label="Target mode">
+          <label><input type="radio" name="targetMode" value="local" checked> Local</label>
+          <label><input type="radio" name="targetMode" value="ssh"> SSH</label>
+        </div>
+        <input id="projectRoot" name="projectRoot" spellcheck="false" aria-label="Project root">
+        <button id="detectSshButton" type="button" hidden>Detect</button>
+        <button type="submit">Scan</button>
+      </form>
+    </header>
+
+    <section id="sshPanel" class="ssh-panel" hidden>
+      <label>Host <input id="sshHost" spellcheck="false"></label>
+      <label>SSH key <input id="sshIdentityFile" spellcheck="false"></label>
+      <label>Remote checkout <input id="sshProjectRoot" spellcheck="false"></label>
+      <label>Live env folder <input id="sshLiveEnvRoot" spellcheck="false"></label>
+      <label>Root env <input id="sshRootEnvPath" spellcheck="false"></label>
+      <label class="sudo-toggle"><input id="sshSudo" type="checkbox"> sudo -n</label>
+    </section>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <div class="sidebar-head">
+          <span>Files</span>
+          <button id="reloadButton" type="button" title="Reload project">Reload</button>
+        </div>
+        <div id="fileList" class="file-list"></div>
+      </aside>
+
+      <section class="editor-shell">
+        <div class="editor-toolbar">
+          <div>
+            <h2 id="fileTitle">Select a file</h2>
+            <p id="fileMeta"></p>
+          </div>
+          <div class="toolbar-actions">
+            <label class="toggle">
+              <input id="showUnderlay" type="checkbox" checked>
+              <span>Example underlay</span>
+            </label>
+            <label class="toggle">
+              <input id="showDocs" type="checkbox" checked>
+              <span>Docs</span>
+            </label>
+            <label class="toggle">
+              <input id="revealValues" type="checkbox">
+              <span>Reveal</span>
+            </label>
+            <button id="saveButton" type="button" disabled>Save</button>
+          </div>
+        </div>
+
+        <div id="statusLine" class="status-line"></div>
+        <div id="emptyState" class="empty-state">Scan a Pandemonium project to edit env files.</div>
+        <div id="rows" class="rows" hidden></div>
+      </section>
+
+      <aside id="docsPanel" class="docs-panel">
+        <h2>Docs</h2>
+        <pre id="docsText"></pre>
+      </aside>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
