@@ -20,6 +20,9 @@ const state = {
 
 const els = {
   projectForm: document.querySelector("#projectForm"),
+  shell: document.querySelector(".shell"),
+  topbar: document.querySelector(".topbar"),
+  localTarget: document.querySelector("#localTarget"),
   projectRoot: document.querySelector("#projectRoot"),
   projectSummary: document.querySelector("#projectSummary"),
   targetMode: [...document.querySelectorAll("input[name='targetMode']")],
@@ -33,6 +36,7 @@ const els = {
   detectSshButton: document.querySelector("#detectSshButton"),
   reloadButton: document.querySelector("#reloadButton"),
   fileList: document.querySelector("#fileList"),
+  fileCount: document.querySelector("#fileCount"),
   fileTitle: document.querySelector("#fileTitle"),
   fileMeta: document.querySelector("#fileMeta"),
   statusLine: document.querySelector("#statusLine"),
@@ -159,9 +163,11 @@ async function saveSelectedFile() {
 }
 
 function render() {
+  const totals = scanTotals();
   els.projectSummary.textContent = state.scan
-    ? `${state.targetMode.toUpperCase()} ${state.scan.files.length} files, ${state.scan.files.reduce((sum, file) => sum + file.stats.total, 0)} variables`
-    : "Pandemonium secrets";
+    ? `${state.targetMode.toUpperCase()} ${state.scan.files.length} files, ${totals.total} variables`
+    : "Local Pandemonium env files";
+  els.fileCount.textContent = state.scan ? `${state.scan.files.length} files` : "No scan";
   renderFileList();
   renderSelectedFile();
 }
@@ -182,10 +188,16 @@ function renderFileList() {
       button.className = `file-button${file.id === state.selectedId ? " active" : ""}`;
       button.innerHTML = `
         <span class="file-path"></span>
-        <span class="file-stats"></span>
+        <span class="file-stats">
+          <span class="mini-pill set"></span>
+          <span class="mini-pill empty"></span>
+          <span class="mini-pill missing"></span>
+        </span>
       `;
       button.querySelector(".file-path").textContent = file.envPath;
-      button.querySelector(".file-stats").textContent = `${file.stats.set} set, ${file.stats.empty} empty, ${file.stats.missing} missing`;
+      button.querySelector(".mini-pill.set").textContent = `${file.stats.set} set`;
+      button.querySelector(".mini-pill.empty").textContent = `${file.stats.empty} empty`;
+      button.querySelector(".mini-pill.missing").textContent = `${file.stats.missing} missing`;
       button.addEventListener("click", () => {
         state.selectedId = file.id;
         render();
@@ -206,6 +218,7 @@ function renderSelectedFile() {
     els.emptyState.hidden = false;
     els.docsText.textContent = "";
     els.saveButton.disabled = true;
+    els.saveButton.textContent = "Save";
     return;
   }
 
@@ -276,10 +289,12 @@ function renderSelectedFile() {
 
 function updateDirtyState(file) {
   const draft = draftFor(file);
-  state.dirty = file.rows.some((row) => draft.has(row.key) && draft.get(row.key) !== row.actualValue);
+  const dirtyCount = file.rows.filter((row) => draft.has(row.key) && draft.get(row.key) !== row.actualValue).length;
+  state.dirty = dirtyCount > 0;
   els.saveButton.disabled = !state.dirty;
+  els.saveButton.textContent = state.dirty ? `Save ${dirtyCount}` : "Save";
   if (state.dirty) {
-    setStatus("Unsaved local edits", "dirty");
+    setStatus(`${dirtyCount} unsaved ${dirtyCount === 1 ? "edit" : "edits"}`, "dirty");
   } else if (!els.statusLine.classList.contains("error")) {
     setStatus(`Loaded ${file.livePath || file.envPath}`);
   }
@@ -345,7 +360,7 @@ function renderTargetMode() {
   const ssh = state.targetMode === "ssh";
   els.sshPanel.hidden = !ssh;
   els.detectSshButton.hidden = !ssh;
-  els.projectRoot.hidden = ssh;
+  els.localTarget.hidden = ssh;
   document.body.classList.toggle("ssh-target", ssh);
 }
 
@@ -361,6 +376,15 @@ function targetLabel() {
     return `${state.ssh.host}:${state.ssh.projectRoot}`;
   }
   return state.projectRoot;
+}
+
+function scanTotals() {
+  return (state.scan?.files ?? []).reduce((totals, file) => ({
+    total: totals.total + file.stats.total,
+    set: totals.set + file.stats.set,
+    empty: totals.empty + file.stats.empty,
+    missing: totals.missing + file.stats.missing
+  }), { total: 0, set: 0, empty: 0, missing: 0 });
 }
 
 function groupBy(items, getKey) {

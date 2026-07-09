@@ -222,8 +222,16 @@ async function assertProjectRoot(projectRoot) {
 }
 
 async function loadConfigDocs(projectRoot) {
-  const markdown = await githubText("docs/configuration.md") || await readTextIfExists(path.posix.join(projectRoot, "docs", "configuration.md"));
-  return { markdown, sections: splitMarkdownSections(markdown) };
+  const markdown = await githubText("docs/reference/configuration.md")
+    || await githubText("docs/configuration.md")
+    || await readTextIfExists(path.posix.join(projectRoot, "docs", "reference", "configuration.md"))
+    || await readTextIfExists(path.posix.join(projectRoot, "docs", "configuration.md"));
+  const moduleDocs = new Map();
+  for (const docPath of MODULE_DOC_PATHS) {
+    const text = await githubText(docPath) || await readTextIfExists(path.posix.join(projectRoot, docPath));
+    if (text) moduleDocs.set(docPath, text);
+  }
+  return { markdown, sections: splitMarkdownSections(markdown), moduleDocs };
 }
 
 async function readExampleEnvFile(relativePath, localFallbackPath) {
@@ -267,9 +275,31 @@ const FILE_SECTION_TITLES = new Map([
   ["secrets/yapbridge.env", "Yapbridge Env"]
 ]);
 
+const FILE_MODULE_DOCS = new Map([
+  ["secrets/calendar.env", "docs/modules/calendar.md"],
+  ["secrets/email.env", "docs/modules/email.md"],
+  ["secrets/finance.env", "docs/modules/finance.md"],
+  ["secrets/public-transport.env", "docs/modules/public-transport.md"],
+  ["secrets/work.env", "docs/modules/work.md"],
+  ["secrets/yapbridge.env", "docs/modules/yapbridge.md"]
+]);
+
+const MODULE_DOC_PATHS = [...new Set(FILE_MODULE_DOCS.values())];
+
 function docsForFile(relativePath, docs) {
-  const title = FILE_SECTION_TITLES.get(relativePath.replaceAll("\\", "/").replace(/^\.\//, ""));
-  return title ? docs.sections.get(title) || "" : "";
+  const normalized = relativePath.replaceAll("\\", "/").replace(/^\.\//, "");
+  const chunks = [];
+  const title = FILE_SECTION_TITLES.get(normalized);
+  if (title && docs.sections.has(title)) {
+    chunks.push(docs.sections.get(title));
+  } else {
+    chunks.push(...configSectionsForFile(normalized, docs.sections));
+  }
+  const moduleDocPath = FILE_MODULE_DOCS.get(normalized);
+  if (moduleDocPath && docs.moduleDocs && docs.moduleDocs.has(moduleDocPath)) {
+    chunks.push(docs.moduleDocs.get(moduleDocPath));
+  }
+  return chunks.filter(Boolean).join("\n\n").trim();
 }
 
 function explainRowsWithDocs(rows, fileDocs) {
@@ -293,6 +323,16 @@ function splitMarkdownSections(markdown) {
   }
   if (currentTitle) sections.set(currentTitle, buffer.join("\n").trim());
   return sections;
+}
+
+function configSectionsForFile(relativePath, sections) {
+  const names = ["Env Ownership", "Module Env Files"];
+  if (relativePath === ".env" || relativePath === "secrets/daemon.env") {
+    names.push("Control and Public Gateway", "Storage", "Paths");
+  } else {
+    names.push("Provider Credentials");
+  }
+  return names.map((name) => sections.get(name)).filter(Boolean);
 }
 
 function explanationForKey(key, markdown) {

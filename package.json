@@ -1,9 +1,9 @@
 {
-  "name": "env-helper",
+  "name": "env-manager",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Local-first helper for editing Pandemonium/Bahnapp env files.",
+  "description": "Local-first manager for editing Pandemonium/Bahnapp env files.",
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test"

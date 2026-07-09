@@ -8,8 +8,8 @@ import { DEFAULT_SSH_TARGET, detectSshPandemoniumTarget, saveEnvFileOverSsh, sca
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.resolve(__dirname, "..", "public");
-const port = Number(process.env.ENV_HELPER_PORT || 5177);
-const host = process.env.ENV_HELPER_HOST || "127.0.0.1";
+const port = Number(process.env.ENV_MANAGER_PORT || 5177);
+const host = process.env.ENV_MANAGER_HOST || "127.0.0.1";
 
 const server = http.createServer(async (request, response) => {
   try {
@@ -57,7 +57,7 @@ const server = http.createServer(async (request, response) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`Env Helper listening on http://${host}:${port}`);
+  console.log(`Env Manager listening on http://${host}:${port}`);
   console.log(`Default project: ${DEFAULT_PROJECT_ROOT}`);
 });
 
@@ -105,6 +105,7 @@ function contentType(filePath) {
   if (filePath.endsWith(".html")) return "text/html; charset=utf-8";
   if (filePath.endsWith(".css")) return "text/css; charset=utf-8";
   if (filePath.endsWith(".js")) return "text/javascript; charset=utf-8";
+  if (filePath.endsWith(".png")) return "image/png";
   return "application/octet-stream";
 }
 

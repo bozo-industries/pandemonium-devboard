@@ -1,12 +1,12 @@
-# Env Helper
+# Env Manager
 
-Tiny local-first editor for Pandemonium/Bahnapp env files.
+Tiny local-first manager for Pandemonium/Bahnapp env files.
 
 It scans a Pandemonium project root, discovers daemon and module-owned env files,
 loads the latest `.env.example` / `deploy/env/*.env.example` / module
 `.env.example` templates from `bozo-industries/Pandemonium@master` as the
 example underlay, overlays live `.env` values, and shows the matching
-`docs/configuration.md` section next to the editor.
+`docs/reference/configuration.md` and `docs/modules/*.md` context next to the editor.
 
 No auth and no remote vault. It only serves the local browser UI, shells out to
 SSH when requested, and fetches read-only Pandemonium examples from GitHub.
@@ -14,7 +14,7 @@ SSH when requested, and fetches read-only Pandemonium examples from GitHub.
 ## SSH Targets
 
 Switch the target mode to `SSH` to scan a Linux deployment through your existing
-SSH access. Env Helper does not store credentials; it shells out to `ssh` and
+SSH access. Env Manager does not store credentials; it shells out to `ssh` and
 runs a small Node script on the remote host.
 
 Defaults:

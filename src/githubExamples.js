@@ -42,9 +42,14 @@ export async function readExampleEnvFile(relativePath, localFallbackPath = "") {
 }
 
 export async function readConfigDocs(localFallbackPath) {
-  const githubDocs = await githubText("docs/configuration.md");
+  const githubDocs = await githubText("docs/reference/configuration.md") || await githubText("docs/configuration.md");
   const markdown = githubDocs || await readTextIfExists(localFallbackPath);
   return markdown;
+}
+
+export async function readProjectText(relativePath, localFallbackPath = "") {
+  const githubDocs = await githubText(relativePath);
+  return githubDocs || (localFallbackPath ? readTextIfExists(localFallbackPath) : "");
 }
 
 function normalizeRepoPath(value) {

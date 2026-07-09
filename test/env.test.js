@@ -17,7 +17,7 @@ test("parseEnv keeps comments with the following key", () => {
 });
 
 test("writeEnvFile updates selected keys and preserves unrelated lines", async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "env-helper-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "env-manager-"));
   const file = path.join(dir, ".env");
   await fs.writeFile(file, "# keep\nTOKEN=old\nOTHER=yes\n", "utf8");
 
@@ -31,7 +31,7 @@ test("writeEnvFile updates selected keys and preserves unrelated lines", async (
 });
 
 test("scanPandemoniumProject discovers daemon and module env overlays", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "env-helper-project-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "env-manager-project-"));
   await fs.mkdir(path.join(root, "src", "modules", "alpha"), { recursive: true });
   await fs.mkdir(path.join(root, "deploy", "env"), { recursive: true });
   await fs.mkdir(path.join(root, "docs"), { recursive: true });
