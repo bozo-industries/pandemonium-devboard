@@ -45,6 +45,7 @@ const els = {
   showUnderlay: document.querySelector("#showUnderlay"),
   showDocs: document.querySelector("#showDocs"),
   revealValues: document.querySelector("#revealValues"),
+  addRowButton: document.querySelector("#addRowButton"),
   saveButton: document.querySelector("#saveButton"),
   docsPanel: document.querySelector("#docsPanel"),
   docsText: document.querySelector("#docsText")
@@ -68,6 +69,7 @@ for (const input of els.targetMode) {
 els.showUnderlay.addEventListener("change", renderSelectedFile);
 els.showDocs.addEventListener("change", renderSelectedFile);
 els.revealValues.addEventListener("change", renderSelectedFile);
+els.addRowButton.addEventListener("click", addEnvRow);
 els.saveButton.addEventListener("click", saveSelectedFile);
 
 renderTargetMode();
@@ -130,26 +132,29 @@ async function saveSelectedFile() {
   }
 
   const changedValues = {};
-  for (const row of file.rows) {
-    const nextValue = draft.get(row.key);
+  for (const row of visibleRows(file)) {
+    const nextValue = draft.values.get(row.key);
     if (nextValue !== undefined && nextValue !== row.actualValue) {
       changedValues[row.key] = nextValue;
     }
   }
+  const deleteKeys = [...draft.deleted].filter((key) => file.rows.some((row) => row.key === key && row.hasActual));
 
-  if (Object.keys(changedValues).length === 0) {
+  if (Object.keys(changedValues).length === 0 && deleteKeys.length === 0) {
     setStatus("No local edits to save.");
     return;
   }
 
-  setStatus(`Saving ${Object.keys(changedValues).length} change(s) to ${file.livePath || file.envPath}...`, "dirty");
+  const changeCount = Object.keys(changedValues).length + deleteKeys.length;
+  setStatus(`Saving ${changeCount} change(s) to ${file.livePath || file.envPath}...`, "dirty");
   els.saveButton.disabled = true;
   try {
     const response = await api("/api/save", {
       ...scanPayload(),
       projectRoot: state.projectRoot,
       envPath: file.envPath,
-      values: changedValues
+      values: changedValues,
+      deleteKeys
     });
     state.scan = response;
     state.drafts.clear();
@@ -217,6 +222,7 @@ function renderSelectedFile() {
     els.rows.hidden = true;
     els.emptyState.hidden = false;
     els.docsText.textContent = "";
+    els.addRowButton.disabled = true;
     els.saveButton.disabled = true;
     els.saveButton.textContent = "Save";
     return;
@@ -228,19 +234,22 @@ function renderSelectedFile() {
   els.emptyState.hidden = true;
   els.rows.hidden = false;
   els.rows.textContent = "";
+  els.addRowButton.disabled = false;
 
   const draft = draftFor(file);
   const showUnderlay = els.showUnderlay.checked;
   const reveal = els.revealValues.checked;
 
-  for (const row of file.rows) {
+  for (const row of visibleRows(file)) {
     const wrapper = document.createElement("div");
     wrapper.className = `env-row${showUnderlay ? "" : " no-underlay"}`;
 
     const keyCell = document.createElement("div");
     const key = document.createElement("div");
     key.className = "key";
-    key.textContent = row.key;
+    const keyName = document.createElement("span");
+    keyName.textContent = row.key;
+    key.append(keyName);
     keyCell.append(key);
     const hintText = [row.comments.join(" "), els.showDocs.checked ? row.docs : ""].filter(Boolean).join(" ");
     if (hintText) {
@@ -253,25 +262,41 @@ function renderSelectedFile() {
     const valueCell = document.createElement("div");
     valueCell.className = "value-wrap";
     const input = document.createElement("textarea");
-    input.rows = rowValue(row, draft).includes("\n") ? 4 : 1;
+    input.rows = 1;
     input.spellcheck = false;
     input.value = rowValue(row, draft);
     input.placeholder = showUnderlay && row.exampleValue ? row.exampleValue : "";
     input.dataset.key = row.key;
     input.style.webkitTextSecurity = !reveal && input.value ? "disc" : "";
-    if (draft.has(row.key) && draft.get(row.key) !== row.actualValue) {
+    if (draft.values.has(row.key) && draft.values.get(row.key) !== row.actualValue) {
       input.classList.add("changed");
     }
     input.addEventListener("input", () => {
-      draft.set(row.key, input.value);
+      draft.values.set(row.key, input.value);
       updateDirtyState(file);
       input.classList.toggle("changed", input.value !== row.actualValue);
+      autosizeTextarea(input);
     });
     valueCell.append(input);
+    autosizeTextarea(input);
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "row-delete";
+    deleteButton.textContent = "x";
+    deleteButton.title = `Delete ${row.key}`;
+    deleteButton.setAttribute("aria-label", `Delete ${row.key}`);
+    deleteButton.addEventListener("click", () => deleteEnvRow(file, row.key));
 
     const status = document.createElement("span");
     status.className = `status-pill status-${row.status}`;
-    status.textContent = row.status;
+    status.textContent = statusGlyph(row.status);
+    status.title = row.status;
+    status.setAttribute("aria-label", row.status);
+
+    const rowActions = document.createElement("div");
+    rowActions.className = "row-actions";
+    rowActions.append(deleteButton, status);
 
     wrapper.append(keyCell, valueCell);
     if (showUnderlay) {
@@ -280,19 +305,28 @@ function renderSelectedFile() {
       underlay.textContent = row.hasExample ? row.exampleValue || "(empty example)" : "No example";
       wrapper.append(underlay);
     }
-    wrapper.append(status);
+    wrapper.append(rowActions);
     els.rows.append(wrapper);
   }
 
   updateDirtyState(file);
 }
 
+function statusGlyph(status) {
+  if (status === "set") return "✓";
+  if (status === "empty") return "?";
+  if (status === "missing") return "!";
+  if (status === "new") return "?";
+  return "!";
+}
+
 function updateDirtyState(file) {
   const draft = draftFor(file);
-  const dirtyCount = file.rows.filter((row) => draft.has(row.key) && draft.get(row.key) !== row.actualValue).length;
+  const dirtyCount = visibleRows(file).filter((row) => draft.values.has(row.key) && draft.values.get(row.key) !== row.actualValue).length + draft.deleted.size;
   state.dirty = dirtyCount > 0;
   els.saveButton.disabled = !state.dirty;
   els.saveButton.textContent = state.dirty ? `Save ${dirtyCount}` : "Save";
+  els.addRowButton.disabled = !file;
   if (state.dirty) {
     setStatus(`${dirtyCount} unsaved ${dirtyCount === 1 ? "edit" : "edits"}`, "dirty");
   } else if (!els.statusLine.classList.contains("error")) {
@@ -302,13 +336,83 @@ function updateDirtyState(file) {
 
 function draftFor(file) {
   if (!state.drafts.has(file.id)) {
-    state.drafts.set(file.id, new Map(file.rows.map((row) => [row.key, row.actualValue])));
+    state.drafts.set(file.id, {
+      values: new Map(file.rows.map((row) => [row.key, row.actualValue])),
+      deleted: new Set()
+    });
   }
   return state.drafts.get(file.id);
 }
 
 function rowValue(row, draft) {
-  return draft.has(row.key) ? draft.get(row.key) : row.actualValue;
+  return draft.values.has(row.key) ? draft.values.get(row.key) : row.actualValue;
+}
+
+function autosizeTextarea(textarea) {
+  textarea.style.height = "auto";
+  textarea.style.height = `${textarea.scrollHeight}px`;
+}
+
+function visibleRows(file) {
+  const draft = draftFor(file);
+  return file.rows.filter((row) => !draft.deleted.has(row.key));
+}
+
+function addEnvRow() {
+  const file = selectedFile();
+  if (!file) return;
+  const rawKey = prompt("New env key, for example SERVICE_EXAMPLE_FLAG");
+  const key = (rawKey || "").trim();
+  if (!key) return;
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+    setStatus(`Invalid env key: ${key}`, "error");
+    return;
+  }
+  const draft = draftFor(file);
+  if (file.rows.some((row) => row.key === key) && !draft.deleted.has(key)) {
+    setStatus(`${key} already exists in this file.`, "error");
+    return;
+  }
+  draft.deleted.delete(key);
+  let row = file.rows.find((item) => item.key === key);
+  if (!row) {
+    row = {
+      key,
+      exampleValue: "",
+      actualValue: "",
+      effectiveValue: "",
+      hasActual: false,
+      hasExample: false,
+      status: "new",
+      comments: [],
+      docs: ""
+    };
+    file.rows.push(row);
+  }
+  draft.values.set(key, "");
+  setStatus(`Added ${key}; enter a value and save.`, "dirty");
+  renderSelectedFile();
+  const input = els.rows.querySelector(`textarea[data-key="${CSS.escape(key)}"]`);
+  input?.focus();
+}
+
+function deleteEnvRow(file, key) {
+  const draft = draftFor(file);
+  const row = file.rows.find((item) => item.key === key);
+  if (!row) return;
+  if (!confirm(`Delete ${key} from ${file.livePath || file.envPath}?`)) {
+    return;
+  }
+  draft.values.delete(key);
+  if (row.hasActual) {
+    draft.deleted.add(key);
+  } else {
+    file.rows = file.rows.filter((item) => item.key !== key);
+    draft.deleted.delete(key);
+  }
+  updateDirtyState(file);
+  renderSelectedFile();
+  setStatus(`Deleted ${key}; save to write the file.`, "dirty");
 }
 
 function selectedFile() {

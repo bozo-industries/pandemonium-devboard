@@ -30,6 +30,19 @@ test("writeEnvFile updates selected keys and preserves unrelated lines", async (
   assert.match(text, /ADDED=ok/);
 });
 
+test("writeEnvFile deletes selected keys and can add new keys in the same save", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "env-manager-delete-"));
+  const file = path.join(dir, ".env");
+  await fs.writeFile(file, "# delete me\nTOKEN=old\nKEEP=yes\n", "utf8");
+
+  await writeEnvFile(file, { ADDED: "ok" }, { deleteKeys: ["TOKEN"] });
+
+  const text = await fs.readFile(file, "utf8");
+  assert.doesNotMatch(text, /^TOKEN=/m);
+  assert.match(text, /KEEP=yes/);
+  assert.match(text, /ADDED=ok/);
+});
+
 test("scanPandemoniumProject discovers daemon and module env overlays", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "env-manager-project-"));
   await fs.mkdir(path.join(root, "src", "modules", "alpha"), { recursive: true });

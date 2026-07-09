@@ -75,8 +75,9 @@ export async function readEnvFile(filePath) {
   return parseEnv(text);
 }
 
-export async function writeEnvFile(filePath, values) {
+export async function writeEnvFile(filePath, values, options = {}) {
   validateValues(values);
+  const deleteKeys = validateDeleteKeys(options.deleteKeys ?? []);
   const existingText = await readTextIfExists(filePath);
   const parsed = parseEnv(existingText);
   const used = new Set();
@@ -88,6 +89,11 @@ export async function writeEnvFile(filePath, values) {
       continue;
     }
 
+    if (deleteKeys.has(entry.key)) {
+      used.add(entry.key);
+      continue;
+    }
+
     if (Object.hasOwn(values, entry.key)) {
       nextLines.push(formatPair(entry.key, values[entry.key], entry.quote));
       used.add(entry.key);
@@ -96,7 +102,7 @@ export async function writeEnvFile(filePath, values) {
     }
   }
 
-  const missing = Object.keys(values).filter((key) => !used.has(key));
+  const missing = Object.keys(values).filter((key) => !used.has(key) && !deleteKeys.has(key));
   if (missing.length > 0 && nextLines.length > 0 && nextLines[nextLines.length - 1] !== "") {
     nextLines.push("");
   }
@@ -166,6 +172,20 @@ function validateValues(values) {
       throw new Error(`value for ${key} must be a string`);
     }
   }
+}
+
+function validateDeleteKeys(keys) {
+  if (!Array.isArray(keys)) {
+    throw new Error("deleteKeys must be an array");
+  }
+  const normalized = new Set();
+  for (const key of keys) {
+    if (typeof key !== "string" || !KEY_PATTERN.test(key)) {
+      throw new Error(`invalid env key: ${key}`);
+    }
+    normalized.add(key);
+  }
+  return normalized;
 }
 
 function unquoteValue(value) {

@@ -29,7 +29,7 @@ const server = http.createServer(async (request, response) => {
     if (url.pathname === "/api/save" && request.method === "POST") {
       const body = await readJsonBody(request);
       if (body.targetMode === "ssh") {
-        const scan = await saveEnvFileOverSsh(body.ssh || DEFAULT_SSH_TARGET, body.envPath, body.values || {});
+        const scan = await saveEnvFileOverSsh(body.ssh || DEFAULT_SSH_TARGET, body.envPath, body.values || {}, body.deleteKeys || []);
         return sendJson(response, 200, scan);
       }
       const projectRoot = path.resolve(body.projectRoot || DEFAULT_PROJECT_ROOT);
@@ -41,7 +41,7 @@ const server = http.createServer(async (request, response) => {
       if (!isInside(projectRoot, targetPath)) {
         return sendJson(response, 400, { error: "envPath must stay inside the project root" });
       }
-      await writeEnvFile(targetPath, body.values || {});
+      await writeEnvFile(targetPath, body.values || {}, { deleteKeys: body.deleteKeys || [] });
       const scan = await scanPandemoniumProject(projectRoot);
       return sendJson(response, 200, scan);
     }

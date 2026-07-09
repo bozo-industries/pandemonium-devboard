@@ -21,9 +21,9 @@ export async function scanPandemoniumProjectOverSsh(target) {
   return JSON.parse(await runRemoteNode(config, script));
 }
 
-export async function saveEnvFileOverSsh(target, envPath, values) {
+export async function saveEnvFileOverSsh(target, envPath, values, deleteKeys = []) {
   const config = normalizeTarget(target);
-  const payload = { config, envPath, values };
+  const payload = { config, envPath, values, deleteKeys };
   const script = `${remoteScannerSource()}\nsave(${JSON.stringify(payload)}).then((result)=>process.stdout.write(JSON.stringify(result))).catch((error)=>{console.error(error && error.stack || String(error)); process.exit(1);});`;
   return JSON.parse(await runRemoteNode(config, script));
 }
@@ -127,7 +127,7 @@ async function scan(config) {
 
 async function save(payload) {
   const targetPath = await livePathFor(payload.config, payload.envPath);
-  await writeEnvFile(targetPath, payload.values || {});
+  await writeEnvFile(targetPath, payload.values || {}, { deleteKeys: payload.deleteKeys || [] });
   return scan(payload.config);
 }
 
@@ -428,8 +428,9 @@ async function readEnvFile(filePath) {
   return parseEnv(await readTextIfExists(filePath));
 }
 
-async function writeEnvFile(filePath, values) {
+async function writeEnvFile(filePath, values, options = {}) {
   validateValues(values);
+  const deleteKeys = validateDeleteKeys(options.deleteKeys || []);
   const existingText = await readTextIfExists(filePath);
   const parsed = parseEnv(existingText);
   const used = new Set();
@@ -439,6 +440,10 @@ async function writeEnvFile(filePath, values) {
       nextLines.push(entry.raw);
       continue;
     }
+    if (deleteKeys.has(entry.key)) {
+      used.add(entry.key);
+      continue;
+    }
     if (Object.prototype.hasOwnProperty.call(values, entry.key)) {
       nextLines.push(formatPair(entry.key, values[entry.key], entry.quote));
       used.add(entry.key);
@@ -446,7 +451,7 @@ async function writeEnvFile(filePath, values) {
       nextLines.push(entry.raw);
     }
   }
-  const missing = Object.keys(values).filter((key) => !used.has(key));
+  const missing = Object.keys(values).filter((key) => !used.has(key) && !deleteKeys.has(key));
   if (missing.length > 0 && nextLines.length > 0 && nextLines[nextLines.length - 1] !== "") nextLines.push("");
   for (const key of missing) nextLines.push(formatPair(key, values[key]));
   await fs.mkdir(path.posix.dirname(filePath), { recursive: true });
@@ -494,6 +499,16 @@ function validateValues(values) {
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) throw new Error("invalid env key: " + key);
     if (typeof value !== "string") throw new Error("value for " + key + " must be a string");
   }
+}
+
+function validateDeleteKeys(keys) {
+  if (!Array.isArray(keys)) throw new Error("deleteKeys must be an array");
+  const normalized = new Set();
+  for (const key of keys) {
+    if (typeof key !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) throw new Error("invalid env key: " + key);
+    normalized.add(key);
+  }
+  return normalized;
 }
 
 function unquoteValue(value) {
