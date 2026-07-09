@@ -468,13 +468,13 @@ body.ssh-target .layout {
 
 .editor-title {
   min-width: 0;
+  max-width: 425px;
 }
 
 #fileMeta {
   margin-top: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .toolbar-actions {
