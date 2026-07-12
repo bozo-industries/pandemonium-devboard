@@ -1,9 +1,9 @@
 {
-  "name": "env-manager",
-  "version": "0.1.0",
+  "name": "local-dev-dashboard",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Local-first manager for editing Pandemonium/Bahnapp env files.",
+  "description": "Local project dashboard for code metrics, Git history, Codex usage, and environment management.",
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test"

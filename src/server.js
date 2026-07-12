@@ -4,7 +4,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { writeEnvFile } from "./env.js";
 import { DEFAULT_PROJECT_ROOT, scanPandemoniumProject } from "./pandemonium.js";
-import { DEFAULT_SSH_TARGET, detectSshPandemoniumTarget, saveEnvFileOverSsh, scanPandemoniumProjectOverSsh } from "./ssh.js";
+import { detectSshPandemoniumTarget, saveEnvFileOverSsh, scanPandemoniumProjectOverSsh } from "./ssh.js";
+import { analyzeLoc } from "./loc.js";
+import { loadTokenUsage } from "./tokenUsage.js";
+import { commitDetails, commitFileDiff, recentCommits } from "./git.js";
+import { loadLocalSshTarget } from "./localSettings.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.resolve(__dirname, "..", "public");
@@ -14,6 +18,41 @@ const host = process.env.ENV_MANAGER_HOST || "127.0.0.1";
 const server = http.createServer(async (request, response) => {
   try {
     const url = new URL(request.url || "/", `http://${request.headers.host}`);
+    if (url.pathname === "/api/defaults" && request.method === "POST") {
+      return sendJson(response, 200, {
+        projectRoot: DEFAULT_PROJECT_ROOT,
+        ssh: await loadLocalSshTarget()
+      });
+    }
+
+    if (url.pathname === "/api/overview" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      const projectRoot = path.resolve(body.projectRoot || DEFAULT_PROJECT_ROOT);
+      const [loc, git, tokens] = await Promise.allSettled([
+        analyzeLoc(projectRoot),
+        recentCommits(projectRoot, body.commitLimit),
+        loadTokenUsage()
+      ]);
+      return sendJson(response, 200, {
+        projectRoot,
+        loc: settledPayload(loc),
+        git: settledPayload(git),
+        tokens: settledPayload(tokens)
+      });
+    }
+
+    if (url.pathname === "/api/git/commit" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      const details = await commitDetails(body.projectRoot || DEFAULT_PROJECT_ROOT, body.commit);
+      return sendJson(response, 200, details);
+    }
+
+    if (url.pathname === "/api/git/diff" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      const diff = await commitFileDiff(body.projectRoot || DEFAULT_PROJECT_ROOT, body.commit, body.path);
+      return sendJson(response, 200, diff);
+    }
+
     if (url.pathname === "/api/scan" && request.method === "POST") {
       const body = await readJsonBody(request);
       const scan = await scanTarget(body);
@@ -22,14 +61,14 @@ const server = http.createServer(async (request, response) => {
 
     if (url.pathname === "/api/detect-ssh" && request.method === "POST") {
       const body = await readJsonBody(request);
-      const detected = await detectSshPandemoniumTarget(body.ssh || DEFAULT_SSH_TARGET);
+      const detected = await detectSshPandemoniumTarget(body.ssh || await loadLocalSshTarget());
       return sendJson(response, 200, detected);
     }
 
     if (url.pathname === "/api/save" && request.method === "POST") {
       const body = await readJsonBody(request);
       if (body.targetMode === "ssh") {
-        const scan = await saveEnvFileOverSsh(body.ssh || DEFAULT_SSH_TARGET, body.envPath, body.values || {}, body.deleteKeys || []);
+        const scan = await saveEnvFileOverSsh(body.ssh || await loadLocalSshTarget(), body.envPath, body.values || {}, body.deleteKeys || []);
         return sendJson(response, 200, scan);
       }
       const projectRoot = path.resolve(body.projectRoot || DEFAULT_PROJECT_ROOT);
@@ -57,7 +96,7 @@ const server = http.createServer(async (request, response) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`Env Manager listening on http://${host}:${port}`);
+  console.log(`Local Dev Dashboard listening on http://${host}:${port}`);
   console.log(`Default project: ${DEFAULT_PROJECT_ROOT}`);
 });
 
@@ -120,7 +159,15 @@ function isInside(root, target) {
 
 async function scanTarget(body) {
   if (body.targetMode === "ssh") {
-    return scanPandemoniumProjectOverSsh(body.ssh || DEFAULT_SSH_TARGET);
+    return scanPandemoniumProjectOverSsh(body.ssh || await loadLocalSshTarget());
   }
   return scanPandemoniumProject(body.projectRoot || DEFAULT_PROJECT_ROOT);
+}
+
+function settledPayload(result) {
+  if (result.status === "fulfilled") return { ok: true, data: result.value };
+  return {
+    ok: false,
+    error: result.reason instanceof Error ? result.reason.message : String(result.reason)
+  };
 }

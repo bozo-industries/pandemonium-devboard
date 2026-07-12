@@ -3,19 +3,92 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Env Manager</title>
+    <title>Local Dev Dashboard</title>
     <link rel="icon" type="image/png" href="/favicon.png">
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
-    <div class="shell">
-      <header class="topbar">
+    <div class="shell dashboard-shell">
+      <header class="topbar dashboard-topbar">
         <div class="brand">
-          <p class="kicker">Pandemonium local tools</p>
-          <h1>Env Manager</h1>
-          <p id="projectSummary">Local Pandemonium env files</p>
+          <p class="kicker">Your project, at a glance</p>
+          <h1>Local Dev Dashboard</h1>
+          <p id="projectSummary">Code, activity, usage, and environment</p>
         </div>
-        <form id="projectForm" class="project-form">
+      </header>
+
+      <nav class="tabs" role="tablist" aria-label="Dashboard sections">
+        <button id="overviewTab" class="tab active" type="button" role="tab" aria-selected="true" aria-controls="overviewPanel">Overview</button>
+        <button id="environmentTab" class="tab" type="button" role="tab" aria-selected="false" aria-controls="environmentPanel">Environment</button>
+      </nav>
+
+      <section id="overviewPanel" class="tab-panel overview" role="tabpanel" aria-labelledby="overviewTab">
+        <div class="overview-heading">
+          <div>
+            <p class="eyebrow">Workspace pulse</p>
+            <h2 id="overviewTitle">Project overview</h2>
+          </div>
+          <div class="overview-actions">
+            <p id="overviewStatus" class="overview-status">Loading project data…</p>
+            <button id="overviewRefreshButton" class="ghost" type="button">Refresh</button>
+          </div>
+        </div>
+
+        <div class="metric-grid" aria-label="Project metrics">
+          <article class="metric-card"><span>Production lines</span><strong id="locTotal">—</strong><small id="locSplit">Total minus tests</small></article>
+          <article class="metric-card"><span>Production files</span><strong id="locFiles">—</strong><small id="locFilesSplit">Total minus test files</small></article>
+          <article class="metric-card"><span>Codex tokens</span><strong id="tokenTotal">—</strong><small id="tokenSplit">Input + output + cache</small></article>
+          <article class="metric-card"><span>Estimated cost</span><strong id="tokenCost">—</strong><small>All recorded Codex usage</small></article>
+        </div>
+
+        <div class="overview-grid">
+          <article class="dashboard-card loc-card">
+            <header class="card-heading">
+              <div><p class="eyebrow">Composition</p><h2>Lines of code</h2></div>
+              <span id="locScope" class="card-chip">src/</span>
+            </header>
+            <div id="locError" class="panel-error" hidden></div>
+            <div id="locBreakdown" class="breakdown-list"></div>
+          </article>
+
+          <article class="dashboard-card usage-card">
+            <header class="card-heading">
+              <div><p class="eyebrow">Codex usage</p><h2>Token profile</h2></div>
+              <span class="card-chip">ccusage</span>
+            </header>
+            <div id="tokenError" class="panel-error" hidden></div>
+            <div id="tokenBreakdown" class="token-breakdown"></div>
+            <div id="tokenDaily" class="daily-usage"></div>
+          </article>
+
+          <article class="dashboard-card git-card">
+            <header class="card-heading">
+              <div><p class="eyebrow">Repository activity</p><h2>Recent commits</h2></div>
+              <span id="gitBranch" class="card-chip">—</span>
+            </header>
+            <div id="gitError" class="panel-error" hidden></div>
+            <div class="git-browser">
+              <div id="commitList" class="commit-list" aria-label="Commit history"></div>
+              <section id="commitViewer" class="commit-viewer">
+                <div id="commitEmpty" class="commit-empty">Select a commit to inspect its changed files.</div>
+                <div id="commitDetails" hidden>
+                  <header class="commit-detail-header">
+                    <div><strong id="commitSubject"></strong><p id="commitMeta"></p></div>
+                    <code id="commitHash"></code>
+                  </header>
+                  <p id="commitBody" class="commit-body"></p>
+                  <div id="changedFiles" class="changed-files"></div>
+                  <div class="diff-heading"><strong id="diffTitle">Patch</strong><span id="diffStatus"></span></div>
+                  <pre id="diffViewer" class="diff-viewer">Choose a changed file to view its patch.</pre>
+                </div>
+              </section>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="environmentPanel" class="tab-panel environment-panel" role="tabpanel" aria-labelledby="environmentTab" hidden>
+        <form id="projectForm" class="project-form dashboard-project-form env-target-toolbar">
           <div class="target-mode" role="radiogroup" aria-label="Target mode">
             <label><input type="radio" name="targetMode" value="local" checked> Local</label>
             <label><input type="radio" name="targetMode" value="ssh"> SSH</label>
@@ -33,61 +106,40 @@
           </section>
           <div class="target-actions">
             <button id="detectSshButton" class="ghost" type="button" hidden>Detect</button>
-            <button type="submit">Scan</button>
+            <button id="refreshButton" type="submit">Scan env</button>
           </div>
         </form>
-      </header>
-
-      <main class="layout">
-        <aside class="sidebar">
-          <div class="sidebar-head">
-            <div>
-              <strong>Files</strong>
-              <span id="fileCount">No scan</span>
+        <main class="layout env-layout">
+          <aside class="sidebar">
+            <div class="sidebar-head">
+              <div><strong>Environment files</strong><span id="fileCount">No scan</span></div>
+              <button id="reloadButton" class="ghost" type="button" title="Reload project">Reload</button>
             </div>
-            <button id="reloadButton" class="ghost" type="button" title="Reload project">Reload</button>
-          </div>
-          <div id="fileList" class="file-list"></div>
-        </aside>
+            <div id="fileList" class="file-list"></div>
+          </aside>
 
-        <section class="editor-shell">
-          <div class="editor-toolbar">
-            <div class="editor-title">
-              <h2 id="fileTitle">Select a file</h2>
-              <p id="fileMeta"></p>
-            </div>
-            <div class="toolbar-actions">
-              <div class="view-toggles">
-                <label class="toggle">
-                  <input id="showUnderlay" type="checkbox" checked>
-                  <span>Underlay</span>
-                </label>
-                <label class="toggle">
-                  <input id="showDocs" type="checkbox" checked>
-                  <span>Docs</span>
-                </label>
-                <label class="toggle">
-                  <input id="revealValues" type="checkbox">
-                  <span>Reveal</span>
-                </label>
+          <section class="editor-shell">
+            <div class="editor-toolbar">
+              <div class="editor-title"><h2 id="fileTitle">Select a file</h2><p id="fileMeta"></p></div>
+              <div class="toolbar-actions">
+                <div class="view-toggles">
+                  <label class="toggle"><input id="showUnderlay" type="checkbox" checked><span>Underlay</span></label>
+                  <label class="toggle"><input id="showDocs" type="checkbox" checked><span>Docs</span></label>
+                  <label class="toggle"><input id="revealValues" type="checkbox"><span>Reveal</span></label>
+                </div>
+                <button id="addRowButton" class="ghost" type="button" disabled>Add</button>
+                <button id="saveButton" type="button" disabled>Save</button>
               </div>
-              <button id="addRowButton" class="ghost" type="button" disabled>Add</button>
-              <button id="saveButton" type="button" disabled>Save</button>
             </div>
-          </div>
+            <div id="statusLine" class="status-line"></div>
+            <div id="emptyState" class="empty-state">Scan a Pandemonium project to edit env files.</div>
+            <div id="rows" class="rows" hidden></div>
+          </section>
 
-          <div id="statusLine" class="status-line"></div>
-          <div id="emptyState" class="empty-state">Scan a Pandemonium project to edit env files.</div>
-          <div id="rows" class="rows" hidden></div>
-        </section>
-
-        <aside id="docsPanel" class="docs-panel">
-          <h2>Docs</h2>
-          <pre id="docsText"></pre>
-        </aside>
-      </main>
+          <aside id="docsPanel" class="docs-panel"><h2>Docs</h2><pre id="docsText"></pre></aside>
+        </main>
+      </section>
     </div>
-
     <script type="module" src="/app.js"></script>
   </body>
 </html>

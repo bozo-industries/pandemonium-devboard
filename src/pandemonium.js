@@ -4,7 +4,7 @@ import { buildRows, readEnvFile } from "./env.js";
 import { docsForFile, explainRowsWithDocs, loadConfigDocs } from "./docs.js";
 import { githubFileExists, readExampleEnvFile } from "./githubExamples.js";
 
-export const DEFAULT_PROJECT_ROOT = "C:\\Users\\user\\Documents\\Bahnapp-calendar-bridge";
+export const DEFAULT_PROJECT_ROOT = "C:\\Users\\user\\Code\\Pandemonium";
 
 export async function scanPandemoniumProject(projectRoot) {
   const root = path.resolve(projectRoot || DEFAULT_PROJECT_ROOT);

@@ -1,0 +1,8 @@
+{
+  "host": "user@example-host",
+  "identityFile": "C:\\path\\to\\ssh-key",
+  "projectRoot": "/path/to/project",
+  "liveEnvRoot": "/etc/project",
+  "rootEnvPath": "/etc/project.env",
+  "sudo": false
+}

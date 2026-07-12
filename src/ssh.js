@@ -1,11 +1,11 @@
 import { spawn } from "node:child_process";
 
 export const DEFAULT_SSH_TARGET = {
-  host: "user@192.168.1.82",
-  identityFile: "C:\\Users\\user\\.ssh\\codex_claraos_ed25519",
-  projectRoot: "/opt/pandemonium",
-  liveEnvRoot: "/etc/pandemonium",
-  rootEnvPath: "/etc/pandemonium.env",
+  host: "",
+  identityFile: "",
+  projectRoot: "",
+  liveEnvRoot: "",
+  rootEnvPath: "",
   sudo: false
 };
 
