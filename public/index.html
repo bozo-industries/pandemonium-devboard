@@ -20,6 +20,7 @@
       <nav class="tabs" role="tablist" aria-label="Dashboard sections">
         <button id="overviewTab" class="tab active" type="button" role="tab" aria-selected="true" aria-controls="overviewPanel">Overview</button>
         <button id="environmentTab" class="tab" type="button" role="tab" aria-selected="false" aria-controls="environmentPanel">Environment</button>
+        <button id="todoTab" class="tab" type="button" role="tab" aria-selected="false" aria-controls="todoPanel">Todo</button>
       </nav>
 
       <section id="overviewPanel" class="tab-panel overview" role="tabpanel" aria-labelledby="overviewTab">
@@ -138,6 +139,33 @@
 
           <aside id="docsPanel" class="docs-panel"><h2>Docs</h2><pre id="docsText"></pre></aside>
         </main>
+      </section>
+
+      <section id="todoPanel" class="tab-panel todo-panel" role="tabpanel" aria-labelledby="todoTab" hidden>
+        <header class="todo-toolbar">
+          <div><p class="eyebrow">README.md</p><h2>Todo plans</h2></div>
+          <div class="todo-actions">
+            <span id="todoStatus" class="overview-status">Load a local project to see its TODOs.</span>
+            <button id="todoSaveButton" class="ghost" type="button" disabled>Save plan</button>
+            <button id="todoRemoveButton" class="danger" type="button" disabled>Remove Todo</button>
+            <button id="todoPushButton" type="button" disabled>Commit &amp; push</button>
+          </div>
+        </header>
+        <div class="todo-layout">
+          <aside class="todo-list-panel">
+            <div id="todoList" class="todo-list"></div>
+          </aside>
+          <section class="todo-editor">
+            <div id="todoEmpty" class="commit-empty">Select a README TODO to attach or edit its detailed plan.</div>
+            <div id="todoEditorContent" hidden>
+              <header class="todo-editor-heading">
+                <div><p class="eyebrow">Detailed plan</p><h2 id="todoTitle"></h2><p id="todoDocPath"></p></div>
+                <a id="todoGitHubLink" class="ghost todo-github-link" target="_blank" rel="noreferrer" hidden>View on GitHub</a>
+              </header>
+              <textarea id="todoDocument" class="todo-document" spellcheck="true" placeholder="Write the detailed context and plan for this TODO…"></textarea>
+            </div>
+          </section>
+        </div>
       </section>
     </div>
     <script type="module" src="/app.js"></script>

@@ -8,6 +8,7 @@ import { analyzeLoc, isTestPath } from "../src/loc.js";
 import { parseTokenUsage } from "../src/tokenUsage.js";
 import { commitDetails, commitFileDiff, parseNumstat, recentCommits, safeRelativePath } from "../src/git.js";
 import { normalizeSshTarget } from "../src/localSettings.js";
+import { deleteTodo, loadTodoBoard, saveTodoDocument } from "../src/todos.js";
 
 test("LOC analysis splits source and tests and groups modules", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-dashboard-loc-"));
@@ -120,6 +121,38 @@ test("local SSH settings are normalized without retaining unknown fields", () =>
     rootEnvPath: "/etc/project.env",
     sudo: true
   });
+});
+
+test("Todo plans attach a docs/todo document and link the README title", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-dashboard-todo-"));
+  git(root, ["init"]);
+  git(root, ["config", "user.name", "Dashboard Test"]);
+  git(root, ["config", "user.email", "dashboard@example.test"]);
+  await fs.writeFile(path.join(root, "README.md"), "# Project\n\n## TODO\n\n- Keep docs aligned\n\n## Next\n", "utf8");
+
+  const before = await loadTodoBoard(root);
+  assert.equal(before.todos.length, 1);
+  assert.equal(before.todos[0].docPath, "");
+
+  const after = await saveTodoDocument(root, before.todos[0].id, "# Keep docs aligned\n\nDetailed plan.\n");
+  assert.equal(after.todos[0].docPath, "docs/todo/keep-docs-aligned.md");
+  assert.equal(await fs.readFile(path.join(root, after.todos[0].docPath), "utf8"), "# Keep docs aligned\n\nDetailed plan.\n");
+  assert.match(await fs.readFile(path.join(root, "README.md"), "utf8"), /\[Keep docs aligned\]\(docs\/todo\/keep-docs-aligned\.md\)/);
+});
+
+test("Removing a Todo deletes its README entry and attached plan", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-dashboard-todo-remove-"));
+  git(root, ["init"]);
+  await fs.writeFile(path.join(root, "README.md"), "# Project\n\n## TODO\n\n- [Keep docs aligned](docs/todo/keep-docs-aligned.md)\n\n## Next\n", "utf8");
+  await fs.mkdir(path.join(root, "docs", "todo"), { recursive: true });
+  const planPath = path.join(root, "docs", "todo", "keep-docs-aligned.md");
+  await fs.writeFile(planPath, "# Keep docs aligned\n", "utf8");
+
+  const board = await loadTodoBoard(root);
+  const after = await deleteTodo(root, board.todos[0].id);
+  assert.equal(after.todos.length, 0);
+  assert.doesNotMatch(await fs.readFile(path.join(root, "README.md"), "utf8"), /Keep docs aligned/);
+  await assert.rejects(fs.access(planPath), { code: "ENOENT" });
 });
 
 function git(root, args) {

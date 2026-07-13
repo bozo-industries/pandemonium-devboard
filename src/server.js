@@ -9,6 +9,7 @@ import { analyzeLoc } from "./loc.js";
 import { loadTokenUsage } from "./tokenUsage.js";
 import { commitDetails, commitFileDiff, recentCommits } from "./git.js";
 import { loadLocalSshTarget } from "./localSettings.js";
+import { deleteTodo, loadTodoBoard, pushTodoChanges, saveTodoDocument } from "./todos.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.resolve(__dirname, "..", "public");
@@ -23,6 +24,26 @@ const server = http.createServer(async (request, response) => {
         projectRoot: DEFAULT_PROJECT_ROOT,
         ssh: await loadLocalSshTarget()
       });
+    }
+
+    if (url.pathname === "/api/todos" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      return sendJson(response, 200, await loadTodoBoard(body.projectRoot || DEFAULT_PROJECT_ROOT));
+    }
+
+    if (url.pathname === "/api/todos/save" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      return sendJson(response, 200, await saveTodoDocument(body.projectRoot || DEFAULT_PROJECT_ROOT, body.todoId, body.content));
+    }
+
+    if (url.pathname === "/api/todos/delete" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      return sendJson(response, 200, await deleteTodo(body.projectRoot || DEFAULT_PROJECT_ROOT, body.todoId));
+    }
+
+    if (url.pathname === "/api/todos/push" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      return sendJson(response, 200, await pushTodoChanges(body.projectRoot || DEFAULT_PROJECT_ROOT));
     }
 
     if (url.pathname === "/api/overview" && request.method === "POST") {

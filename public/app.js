@@ -15,6 +15,8 @@ const state = {
   scan: null,
   activeTab: "overview",
   overview: null,
+  todoBoard: null,
+  selectedTodoId: "",
   selectedCommit: "",
   selectedDiffPath: "",
   selectedId: "",
@@ -55,8 +57,10 @@ const els = {
   docsText: document.querySelector("#docsText"),
   overviewTab: document.querySelector("#overviewTab"),
   environmentTab: document.querySelector("#environmentTab"),
+  todoTab: document.querySelector("#todoTab"),
   overviewPanel: document.querySelector("#overviewPanel"),
   environmentPanel: document.querySelector("#environmentPanel"),
+  todoPanel: document.querySelector("#todoPanel"),
   refreshButton: document.querySelector("#refreshButton"),
   overviewRefreshButton: document.querySelector("#overviewRefreshButton"),
   overviewTitle: document.querySelector("#overviewTitle"),
@@ -87,7 +91,18 @@ const els = {
   changedFiles: document.querySelector("#changedFiles"),
   diffTitle: document.querySelector("#diffTitle"),
   diffStatus: document.querySelector("#diffStatus"),
-  diffViewer: document.querySelector("#diffViewer")
+  diffViewer: document.querySelector("#diffViewer"),
+  todoStatus: document.querySelector("#todoStatus"),
+  todoList: document.querySelector("#todoList"),
+  todoEmpty: document.querySelector("#todoEmpty"),
+  todoEditorContent: document.querySelector("#todoEditorContent"),
+  todoTitle: document.querySelector("#todoTitle"),
+  todoDocPath: document.querySelector("#todoDocPath"),
+  todoGitHubLink: document.querySelector("#todoGitHubLink"),
+  todoDocument: document.querySelector("#todoDocument"),
+  todoSaveButton: document.querySelector("#todoSaveButton"),
+  todoRemoveButton: document.querySelector("#todoRemoveButton"),
+  todoPushButton: document.querySelector("#todoPushButton")
 };
 
 els.projectForm.addEventListener("submit", (event) => {
@@ -98,6 +113,7 @@ els.projectForm.addEventListener("submit", (event) => {
 els.overviewRefreshButton.addEventListener("click", loadOverview);
 els.overviewTab.addEventListener("click", () => selectTab("overview"));
 els.environmentTab.addEventListener("click", () => selectTab("environment"));
+els.todoTab.addEventListener("click", () => selectTab("todo"));
 els.reloadButton.addEventListener("click", () => scan());
 els.detectSshButton.addEventListener("click", detectSsh);
 for (const input of els.targetMode) {
@@ -112,6 +128,9 @@ els.showDocs.addEventListener("change", renderSelectedFile);
 els.revealValues.addEventListener("change", renderSelectedFile);
 els.addRowButton.addEventListener("click", addEnvRow);
 els.saveButton.addEventListener("click", saveSelectedFile);
+els.todoSaveButton.addEventListener("click", saveTodoPlan);
+els.todoRemoveButton.addEventListener("click", removeTodo);
+els.todoPushButton.addEventListener("click", pushTodoPlans);
 
 renderTargetMode();
 loadDefaults();
@@ -130,21 +149,146 @@ async function loadDefaults() {
 }
 
 function selectTab(tab) {
-  if (tab === "overview" && state.targetMode === "ssh") tab = "environment";
+  if ((tab === "overview" || tab === "todo") && state.targetMode === "ssh") tab = "environment";
   state.activeTab = tab;
   const overview = tab === "overview";
+  const todo = tab === "todo";
   els.overviewTab.classList.toggle("active", overview);
-  els.environmentTab.classList.toggle("active", !overview);
+  els.environmentTab.classList.toggle("active", !overview && !todo);
+  els.todoTab.classList.toggle("active", todo);
   els.overviewTab.setAttribute("aria-selected", String(overview));
-  els.environmentTab.setAttribute("aria-selected", String(!overview));
+  els.environmentTab.setAttribute("aria-selected", String(!overview && !todo));
+  els.todoTab.setAttribute("aria-selected", String(todo));
   els.overviewPanel.hidden = !overview;
-  els.environmentPanel.hidden = overview;
+  els.environmentPanel.hidden = overview || todo;
+  els.todoPanel.hidden = !todo;
   document.body.classList.toggle("overview-active", overview);
   if (overview) {
     if (!state.overview || state.overview.projectRoot !== state.projectRoot) loadOverview();
     else renderOverview();
+  } else if (todo) {
+    loadTodos();
   } else if (!state.scan) {
     scan();
+  }
+}
+
+async function loadTodos() {
+  if (state.targetMode !== "local") return selectTab("environment");
+  els.todoStatus.textContent = "Loading README TODOs…";
+  els.todoStatus.className = "overview-status loading";
+  try {
+    state.todoBoard = await api("/api/todos", { projectRoot: state.projectRoot });
+    if (!state.selectedTodoId || !state.todoBoard.todos.some((todo) => todo.id === state.selectedTodoId)) {
+      state.selectedTodoId = state.todoBoard.todos[0]?.id || "";
+    }
+    renderTodos();
+    els.todoStatus.textContent = `${state.todoBoard.todos.length} TODO${state.todoBoard.todos.length === 1 ? "" : "s"} from README.md`;
+    els.todoStatus.className = "overview-status ok";
+  } catch (error) {
+    state.todoBoard = null;
+    state.selectedTodoId = "";
+    renderTodos();
+    els.todoStatus.textContent = error.message;
+    els.todoStatus.className = "overview-status error";
+  }
+}
+
+function renderTodos() {
+  const todos = state.todoBoard?.todos || [];
+  els.todoList.textContent = "";
+  for (const todo of todos) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `todo-item${todo.id === state.selectedTodoId ? " active" : ""}`;
+    const title = document.createElement("strong");
+    title.textContent = todo.title;
+    const meta = document.createElement("small");
+    meta.textContent = todo.docPath ? todo.docPath : "No detailed plan attached";
+    button.append(title, meta);
+    button.addEventListener("click", () => {
+      state.selectedTodoId = todo.id;
+      renderTodos();
+    });
+    els.todoList.append(button);
+  }
+  const selected = todos.find((todo) => todo.id === state.selectedTodoId);
+  els.todoEmpty.hidden = Boolean(selected);
+  els.todoEditorContent.hidden = !selected;
+  els.todoSaveButton.disabled = !selected;
+  els.todoRemoveButton.disabled = !selected;
+  els.todoPushButton.disabled = !selected;
+  if (!selected) return;
+  els.todoTitle.textContent = selected.title;
+  els.todoDocPath.textContent = selected.docPath || "Save to attach docs/todo/<todo-name>.md";
+  els.todoDocument.value = selected.content || defaultTodoPlan(selected.title);
+  els.todoGitHubLink.hidden = !selected.githubUrl;
+  els.todoGitHubLink.href = selected.githubUrl || "#";
+}
+
+async function removeTodo() {
+  const selected = state.todoBoard?.todos.find((todo) => todo.id === state.selectedTodoId);
+  if (!selected) return;
+  const detail = selected.docPath ? " and its detailed plan" : "";
+  if (!confirm(`Remove “${selected.title}” from README.md${detail}?`)) return;
+  els.todoRemoveButton.disabled = true;
+  els.todoStatus.textContent = "Removing Todo…";
+  els.todoStatus.className = "overview-status loading";
+  try {
+    state.todoBoard = await api("/api/todos/delete", {
+      projectRoot: state.projectRoot,
+      todoId: selected.id
+    });
+    state.selectedTodoId = state.todoBoard.todos[0]?.id || "";
+    renderTodos();
+    els.todoStatus.textContent = selected.docPath ? "Removed Todo and detailed plan locally" : "Removed Todo locally";
+    els.todoStatus.className = "overview-status ok";
+  } catch (error) {
+    els.todoStatus.textContent = error.message;
+    els.todoStatus.className = "overview-status error";
+  } finally {
+    els.todoRemoveButton.disabled = !state.selectedTodoId;
+  }
+}
+
+async function saveTodoPlan() {
+  const selected = state.todoBoard?.todos.find((todo) => todo.id === state.selectedTodoId);
+  if (!selected) return;
+  els.todoSaveButton.disabled = true;
+  els.todoStatus.textContent = "Saving Todo plan…";
+  els.todoStatus.className = "overview-status loading";
+  try {
+    state.todoBoard = await api("/api/todos/save", {
+      projectRoot: state.projectRoot,
+      todoId: selected.id,
+      content: els.todoDocument.value
+    });
+    state.selectedTodoId = state.todoBoard.todos.find((todo) => todo.title === selected.title)?.id || "";
+    renderTodos();
+    els.todoStatus.textContent = "Saved README link and Todo plan locally";
+    els.todoStatus.className = "overview-status ok";
+  } catch (error) {
+    els.todoStatus.textContent = error.message;
+    els.todoStatus.className = "overview-status error";
+  } finally {
+    els.todoSaveButton.disabled = false;
+  }
+}
+
+async function pushTodoPlans() {
+  if (!confirm("Commit and push README.md plus docs/todo changes?")) return;
+  els.todoPushButton.disabled = true;
+  els.todoStatus.textContent = "Committing and pushing Todo plans…";
+  els.todoStatus.className = "overview-status loading";
+  try {
+    const result = await api("/api/todos/push", { projectRoot: state.projectRoot });
+    els.todoStatus.textContent = `Pushed Todo plans in ${result.commit}`;
+    els.todoStatus.className = "overview-status ok";
+  } catch (error) {
+    els.todoStatus.textContent = error.message;
+    els.todoStatus.className = "overview-status error";
+  } finally {
+    els.todoPushButton.disabled = false;
   }
 }
 
@@ -739,7 +883,9 @@ function renderTargetMode() {
   els.localTarget.hidden = ssh;
   document.body.classList.toggle("ssh-target", ssh);
   els.overviewTab.disabled = ssh;
+  els.todoTab.disabled = ssh;
   els.overviewTab.title = ssh ? "Overview currently uses a local Git checkout" : "Project overview";
+  els.todoTab.title = ssh ? "Todo plans currently use a local Git checkout" : "README Todo plans";
 }
 
 function scanPayload() {
@@ -803,4 +949,8 @@ function relativeDate(value) {
   if (Math.abs(seconds) < 3600) return formatter.format(Math.round(seconds / 60), "minute");
   if (Math.abs(seconds) < 86400) return formatter.format(Math.round(seconds / 3600), "hour");
   return formatter.format(Math.round(seconds / 86400), "day");
+}
+
+function defaultTodoPlan(title) {
+  return `# ${title}\n\n## Goal\n\nDescribe the outcome this TODO should achieve.\n\n## Context\n\nRecord the relevant code, docs, constraints, and open questions.\n\n## Plan\n\n1. Identify the current behavior and affected boundaries.\n2. Make the smallest complete implementation change.\n3. Add or update focused tests and documentation.\n4. Verify the result in the relevant local or live surface.\n\n## Done when\n\n- [ ] The intended behavior is implemented.\n- [ ] Documentation is aligned with the current checkout.\n- [ ] Verification evidence is recorded here.\n`;
 }
