@@ -20,7 +20,7 @@ export async function loadTodoBoard(projectRoot) {
     history: todo.docPath ? await todoDocumentHistory(root, todo.docPath, githubBase) : null,
     content: todo.docPath ? await readTodoDocument(root, todo.docPath) : ""
   })));
-  return { root, githubBase, todos };
+  return { root, githubBase, todos, pushAvailable: await hasPushableTodoWork(root) };
 }
 
 export async function saveTodoDocument(projectRoot, todoId, content, title) {
@@ -215,6 +215,16 @@ async function hasStagedChanges(root) {
     if (error?.exitCode === 1) return true;
     throw error;
   }
+}
+
+async function hasPushableTodoWork(root) {
+  const upstream = await runGit(root, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"])
+    .then((value) => value.trim())
+    .catch(() => "");
+  if (!upstream) return false;
+  const changed = await runGit(root, ["status", "--porcelain", "--", "README.md", "docs/todo"]);
+  if (changed.trim()) return true;
+  return (await unpushedTodoCommits(root, upstream).catch(() => [])).length > 0;
 }
 
 async function todoPushTarget(root) {

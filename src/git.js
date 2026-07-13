@@ -17,6 +17,7 @@ export async function recentCommits(projectRoot, requestedLimit = 20) {
   return {
     root,
     branch: (await runGit(root, ["branch", "--show-current"])).trim() || "detached HEAD",
+    unpushedCount: unpushed.size,
     commits: parseCommitLogWithStats(stdout).map((commit) => ({ ...commit, pushed: !unpushed.has(commit.hash) }))
   };
 }

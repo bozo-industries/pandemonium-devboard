@@ -1111,8 +1111,42 @@ body.overview-active .overview {
   white-space: nowrap;
 }
 
-.git-card-actions { display: flex; align-items: center; gap: 7px; }
+.git-card-actions { position: relative; display: flex; align-items: center; gap: 7px; }
 .git-card-actions button { min-height: 26px; padding: 0 8px; font-size: 10px; }
+.git-push-count {
+  min-height: 22px;
+  border: 1px solid color-mix(in srgb, var(--yellow) 46%, var(--line));
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: var(--yellow);
+  background: color-mix(in srgb, var(--yellow) 8%, transparent);
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.git-push-confirm {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line-hot);
+  border-radius: var(--theme-radius);
+  padding: 7px;
+  color: var(--text);
+  background: var(--panel-strong);
+  box-shadow: var(--theme-shadow);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.git-push-confirm button {
+  min-height: 24px;
+  padding: 0 7px;
+}
 
 .panel-error {
   border: 1px solid rgba(253, 164, 175, 0.35);

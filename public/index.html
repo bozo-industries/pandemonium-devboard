@@ -54,7 +54,7 @@
           <article class="dashboard-card git-card">
             <header class="card-heading">
               <div><p class="eyebrow">Repository activity</p><h2>Recent commits</h2></div>
-              <div class="git-card-actions"><button id="gitPushButton" class="ghost" type="button" hidden>Push HEAD</button><span id="gitBranch" class="card-chip">—</span></div>
+              <div class="git-card-actions"><button id="gitPushButton" class="ghost" type="button" hidden>Push HEAD</button><span id="gitPushCount" class="git-push-count" hidden></span><span id="gitBranch" class="card-chip">—</span><div id="gitPushConfirm" class="git-push-confirm" role="alertdialog" aria-label="Confirm push" hidden><span>Push all unpushed commits?</span><button id="gitPushCancelButton" class="ghost" type="button">Cancel</button><button id="gitPushConfirmButton" type="button">Push</button></div></div>
             </header>
             <div id="gitError" class="panel-error" hidden></div>
             <div class="git-browser">
@@ -136,7 +136,6 @@
             <p class="eyebrow">README.md</p><h2>Todo plans</h2>
           </div>
           <div class="todo-actions">
-            <span id="todoStatus" class="overview-status">Load a local project to see its TODOs.</span>
             <button id="todoNewButton" class="ghost" type="button">New Todo</button>
             <button id="todoSaveButton" class="ghost" type="button" disabled>Save plan</button>
             <button id="todoPushButton" type="button" disabled>Commit &amp; push</button>

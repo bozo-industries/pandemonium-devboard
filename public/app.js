@@ -84,6 +84,10 @@ const els = {
   usageCard: document.querySelector(".usage-card"),
   gitBranch: document.querySelector("#gitBranch"),
   gitPushButton: document.querySelector("#gitPushButton"),
+  gitPushCount: document.querySelector("#gitPushCount"),
+  gitPushConfirm: document.querySelector("#gitPushConfirm"),
+  gitPushCancelButton: document.querySelector("#gitPushCancelButton"),
+  gitPushConfirmButton: document.querySelector("#gitPushConfirmButton"),
   gitError: document.querySelector("#gitError"),
   commitList: document.querySelector("#commitList"),
   commitViewer: document.querySelector("#commitViewer"),
@@ -97,7 +101,6 @@ const els = {
   diffTitle: document.querySelector("#diffTitle"),
   diffStatus: document.querySelector("#diffStatus"),
   diffViewer: document.querySelector("#diffViewer"),
-  todoStatus: document.querySelector("#todoStatus"),
   todoList: document.querySelector("#todoList"),
   todoEmpty: document.querySelector("#todoEmpty"),
   todoEditorContent: document.querySelector("#todoEditorContent"),
@@ -136,7 +139,11 @@ els.todoSaveButton.addEventListener("click", saveTodoPlan);
 els.todoNewButton.addEventListener("click", createTodo);
 els.todoRemoveButton.addEventListener("click", removeTodo);
 els.todoPushButton.addEventListener("click", pushTodoPlans);
-els.gitPushButton.addEventListener("click", pushHead);
+els.todoTitle.addEventListener("input", updateTodoActionButtons);
+els.todoDocument.addEventListener("input", updateTodoActionButtons);
+els.gitPushButton.addEventListener("click", showGitPushConfirm);
+els.gitPushCancelButton.addEventListener("click", hideGitPushConfirm);
+els.gitPushConfirmButton.addEventListener("click", pushHead);
 new ResizeObserver(scheduleUsageCardHeight).observe(els.locCard);
 for (const input of [els.sshHost, els.sshIdentityFile, els.sshProjectRoot, els.sshLiveEnvRoot, els.sshRootEnvPath]) {
   input.addEventListener("input", queueSshTargetSave);
@@ -195,22 +202,16 @@ function tabFromHash() {
 }
 
 async function loadTodos() {
-  els.todoStatus.textContent = "Loading README TODOs…";
-  els.todoStatus.className = "overview-status loading";
   try {
     state.todoBoard = await api("/api/todos", { projectRoot: DEFAULT_PROJECT_ROOT });
     if (!state.creatingTodo && (!state.selectedTodoId || !state.todoBoard.todos.some((todo) => todo.id === state.selectedTodoId))) {
       state.selectedTodoId = state.todoBoard.todos[0]?.id || "";
     }
     renderTodos();
-    els.todoStatus.textContent = `${state.todoBoard.todos.length} TODO${state.todoBoard.todos.length === 1 ? "" : "s"} from README.md`;
-    els.todoStatus.className = "overview-status ok";
   } catch (error) {
     state.todoBoard = null;
     state.selectedTodoId = "";
     renderTodos();
-    els.todoStatus.textContent = error.message;
-    els.todoStatus.className = "overview-status error";
   }
 }
 
@@ -238,15 +239,29 @@ function renderTodos() {
   els.todoNewButton.disabled = !state.todoBoard;
   els.todoEmpty.hidden = editing;
   els.todoEditorContent.hidden = !editing;
-  els.todoSaveButton.disabled = !editing;
   els.todoRemoveButton.disabled = !selected;
-  els.todoPushButton.disabled = !state.todoBoard;
-  if (!editing) return;
+  if (!editing) {
+    updateTodoActionButtons();
+    return;
+  }
   els.todoTitle.value = selected?.title || "";
   els.todoDocLink.hidden = !selected?.githubUrl;
   els.todoDocLink.href = selected?.githubUrl || "#";
   els.todoDocLink.textContent = selected?.docPath || "";
   els.todoDocument.value = selected?.content || defaultTodoPlan(selected?.title || "New Todo");
+  updateTodoActionButtons();
+}
+
+function todoPlanChanged() {
+  if (state.creatingTodo) return Boolean(els.todoTitle.value.trim());
+  const selected = state.todoBoard?.todos.find((todo) => todo.id === state.selectedTodoId);
+  if (!selected) return false;
+  return els.todoTitle.value.trim() !== selected.title || els.todoDocument.value !== selected.content;
+}
+
+function updateTodoActionButtons() {
+  els.todoSaveButton.disabled = !todoPlanChanged();
+  els.todoPushButton.disabled = !state.todoBoard?.pushAvailable;
 }
 
 function todoHistorySummary(history) {
@@ -267,8 +282,6 @@ async function removeTodo() {
   const detail = selected.docPath ? " and its detailed plan" : "";
   if (!confirm(`Remove “${selected.title}” from README.md${detail}?`)) return;
   els.todoRemoveButton.disabled = true;
-  els.todoStatus.textContent = "Removing Todo…";
-  els.todoStatus.className = "overview-status loading";
   try {
     state.todoBoard = await api("/api/todos/delete", {
       projectRoot: DEFAULT_PROJECT_ROOT,
@@ -276,11 +289,7 @@ async function removeTodo() {
     });
     state.selectedTodoId = state.todoBoard.todos[0]?.id || "";
     renderTodos();
-    els.todoStatus.textContent = selected.docPath ? "Removed Todo and detailed plan locally" : "Removed Todo locally";
-    els.todoStatus.className = "overview-status ok";
   } catch (error) {
-    els.todoStatus.textContent = error.message;
-    els.todoStatus.className = "overview-status error";
   } finally {
     els.todoRemoveButton.disabled = !state.selectedTodoId;
   }
@@ -290,8 +299,6 @@ async function saveTodoPlan() {
   const selected = state.todoBoard?.todos.find((todo) => todo.id === state.selectedTodoId);
   if (!selected && !state.creatingTodo) return;
   els.todoSaveButton.disabled = true;
-  els.todoStatus.textContent = "Saving Todo plan…";
-  els.todoStatus.className = "overview-status loading";
   try {
     state.todoBoard = await api("/api/todos/save", {
       projectRoot: DEFAULT_PROJECT_ROOT,
@@ -303,30 +310,20 @@ async function saveTodoPlan() {
     state.creatingTodo = false;
     state.selectedTodoId = state.todoBoard.todos.find((todo) => todo.title === title)?.id || state.todoBoard.todos[0]?.id || "";
     renderTodos();
-    els.todoStatus.textContent = "Saved README link and Todo plan locally";
-    els.todoStatus.className = "overview-status ok";
   } catch (error) {
-    els.todoStatus.textContent = error.message;
-    els.todoStatus.className = "overview-status error";
   } finally {
-    els.todoSaveButton.disabled = false;
+    updateTodoActionButtons();
   }
 }
 
 async function pushTodoPlans() {
   if (!confirm("Commit and push README.md plus docs/todo changes?")) return;
   els.todoPushButton.disabled = true;
-  els.todoStatus.textContent = "Committing and pushing Todo plans…";
-  els.todoStatus.className = "overview-status loading";
   try {
     const result = await api("/api/todos/push", { projectRoot: DEFAULT_PROJECT_ROOT });
-    els.todoStatus.textContent = `Pushed Todo plans in ${result.commit}`;
-    els.todoStatus.className = "overview-status ok";
   } catch (error) {
-    els.todoStatus.textContent = error.message;
-    els.todoStatus.className = "overview-status error";
   } finally {
-    els.todoPushButton.disabled = false;
+    await loadTodos();
   }
 }
 
@@ -546,7 +543,12 @@ function renderGit(result) {
   els.gitError.textContent = pending || result.ok ? "" : result.error;
   els.commitList.textContent = "";
   els.gitBranch.textContent = pending ? "Loading…" : result.ok ? result.data.branch : "Unavailable";
-  els.gitPushButton.hidden = pending || !result.ok || !result.data.commits.some((commit) => !commit.pushed);
+  const unpushedCount = result.ok ? result.data.unpushedCount : 0;
+  const hasUnpushed = !pending && result.ok && unpushedCount > 0;
+  els.gitPushButton.hidden = !hasUnpushed;
+  els.gitPushCount.hidden = !hasUnpushed;
+  els.gitPushCount.textContent = hasUnpushed ? `${unpushedCount} unpushed` : "";
+  if (!hasUnpushed) hideGitPushConfirm();
   if (pending) {
     els.commitList.textContent = "Loading commits…";
     return;
@@ -610,8 +612,17 @@ async function loadCommit(commit) {
   }
 }
 
+function showGitPushConfirm() {
+  els.gitPushConfirm.hidden = false;
+  els.gitPushConfirmButton.focus();
+}
+
+function hideGitPushConfirm() {
+  els.gitPushConfirm.hidden = true;
+}
+
 async function pushHead() {
-  if (!confirm("Push the entire current branch (HEAD), including all local commits, to origin?")) return;
+  hideGitPushConfirm();
   els.gitPushButton.disabled = true;
   els.gitPushButton.textContent = "Pushing…";
   try {

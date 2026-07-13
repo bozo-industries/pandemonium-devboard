@@ -96,6 +96,7 @@ test("Git history exposes commits, changed files, and bounded per-file patches",
   assert.equal(history.commits.length, 2);
   assert.equal(history.commits[0].subject, "Extend file");
   assert.equal(history.commits[0].pushed, false);
+  assert.equal(history.unpushedCount, 2);
   assert.deepEqual(
     { additions: history.commits[0].additions, deletions: history.commits[0].deletions, filesChanged: history.commits[0].filesChanged },
     { additions: 1, deletions: 0, filesChanged: 1 }
@@ -148,9 +149,11 @@ test("Todo plans attach a docs/todo document and link the README title", async (
   const before = await loadTodoBoard(root);
   assert.equal(before.todos.length, 1);
   assert.equal(before.todos[0].docPath, "");
+  assert.equal(before.pushAvailable, false);
 
   const after = await saveTodoDocument(root, before.todos[0].id, "# Keep docs aligned\n\nDetailed plan.\n");
   assert.equal(after.todos[0].docPath, "docs/todo/keep-docs-aligned.md");
+  assert.equal(after.pushAvailable, false);
   assert.equal(await fs.readFile(path.join(root, after.todos[0].docPath), "utf8"), "# Keep docs aligned\n\nDetailed plan.\n");
   assert.match(await fs.readFile(path.join(root, "README.md"), "utf8"), /\[Keep docs aligned\]\(docs\/todo\/keep-docs-aligned\.md\)/);
   git(root, ["add", "README.md", "docs/todo"]);
@@ -198,6 +201,7 @@ test("Todo push publishes Todo commits without pushing unrelated local commits",
 
   const board = await loadTodoBoard(root);
   await saveTodoDocument(root, board.todos[0].id, "# Ship dashboard\n");
+  assert.equal((await loadTodoBoard(root)).pushAvailable, true);
   await pushTodoChanges(root);
 
   const remoteSubjects = execFileSync("git", ["--git-dir", remote, "log", "--format=%s", "master"], { encoding: "utf8", windowsHide: true });
