@@ -797,7 +797,7 @@ function renderSelectedFile() {
 
   els.fileTitle.textContent = file.owner;
   els.fileMeta.textContent = `${file.livePath ? `${file.livePath} as ` : ""}${file.envPath}${file.examplePath ? ` underlay ${file.examplePath}` : ""}`;
-  els.docsText.textContent = file.docs || "No configuration docs section found for this file.";
+  renderDocsMarkdown(file.docs || "No configuration docs section found for this file.");
   els.emptyState.hidden = true;
   els.rows.hidden = false;
   els.rows.textContent = "";
@@ -877,6 +877,121 @@ function renderSelectedFile() {
   }
 
   updateDirtyState(file);
+}
+
+function renderDocsMarkdown(markdown) {
+  const lines = String(markdown || "").replaceAll("\r", "").split("\n");
+  const content = document.createDocumentFragment();
+
+  for (let index = 0; index < lines.length;) {
+    const line = lines[index];
+    if (!line.trim()) {
+      index += 1;
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      const element = document.createElement(heading[1].length === 1 ? "h3" : "h4");
+      appendMarkdownInline(element, heading[2]);
+      content.append(element);
+      index += 1;
+      continue;
+    }
+
+    if (line.startsWith("```")) {
+      const codeLines = [];
+      index += 1;
+      while (index < lines.length && !lines[index].startsWith("```")) codeLines.push(lines[index++]);
+      if (index < lines.length) index += 1;
+      const block = document.createElement("pre");
+      block.textContent = codeLines.join("\n");
+      content.append(block);
+      continue;
+    }
+
+    if (isMarkdownTable(lines, index)) {
+      const table = document.createElement("table");
+      const head = document.createElement("thead");
+      const headRow = document.createElement("tr");
+      for (const cell of markdownTableCells(lines[index])) {
+        const element = document.createElement("th");
+        appendMarkdownInline(element, cell);
+        headRow.append(element);
+      }
+      head.append(headRow);
+      table.append(head);
+      index += 2;
+      const body = document.createElement("tbody");
+      while (index < lines.length && lines[index].includes("|")) {
+        const row = document.createElement("tr");
+        for (const cell of markdownTableCells(lines[index])) {
+          const element = document.createElement("td");
+          appendMarkdownInline(element, cell);
+          row.append(element);
+        }
+        body.append(row);
+        index += 1;
+      }
+      table.append(body);
+      content.append(table);
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(line)) {
+      const list = document.createElement("ul");
+      while (index < lines.length && /^[-*]\s+/.test(lines[index])) {
+        const item = document.createElement("li");
+        appendMarkdownInline(item, lines[index].replace(/^[-*]\s+/, ""));
+        list.append(item);
+        index += 1;
+      }
+      content.append(list);
+      continue;
+    }
+
+    const paragraphLines = [];
+    while (index < lines.length && lines[index].trim() && !/^(#{1,3})\s+/.test(lines[index]) &&
+      !lines[index].startsWith("```") && !/^[-*]\s+/.test(lines[index]) && !isMarkdownTable(lines, index)) {
+      paragraphLines.push(lines[index].trim());
+      index += 1;
+    }
+    const paragraph = document.createElement("p");
+    appendMarkdownInline(paragraph, paragraphLines.join(" "));
+    content.append(paragraph);
+  }
+
+  els.docsText.replaceChildren(content);
+}
+
+function isMarkdownTable(lines, index) {
+  return Boolean(lines[index]?.includes("|") && /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[index + 1] || ""));
+}
+
+function markdownTableCells(line) {
+  return line.trim().replace(/^\||\|$/g, "").split("|").map((cell) => cell.trim());
+}
+
+function appendMarkdownInline(element, text) {
+  const pattern = /`([^`]+)`|\[([^\]]+)\]\(([^)\s]+)\)/g;
+  let cursor = 0;
+  for (const match of text.matchAll(pattern)) {
+    if (match.index > cursor) element.append(document.createTextNode(text.slice(cursor, match.index)));
+    if (match[1] !== undefined) {
+      const code = document.createElement("code");
+      code.textContent = match[1];
+      element.append(code);
+    } else {
+      const link = document.createElement("a");
+      link.href = match[3];
+      link.textContent = match[2];
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      element.append(link);
+    }
+    cursor = match.index + match[0].length;
+  }
+  if (cursor < text.length) element.append(document.createTextNode(text.slice(cursor)));
 }
 
 function statusGlyph(status) {

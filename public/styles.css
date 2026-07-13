@@ -360,7 +360,7 @@ h2 {
 
 .layout {
   display: grid;
-  grid-template-columns: 270px minmax(0, 1fr) minmax(290px, 24vw);
+  grid-template-columns: clamp(230px, 18vw, 280px) minmax(0, 1fr) clamp(344px, calc(28.6vw - 20px), 422px);
   gap: 9px;
   flex: 1 1 auto;
   min-height: 0;
@@ -397,15 +397,84 @@ body.ssh-target .layout {
   margin-bottom: 9px;
 }
 
-.docs-panel pre {
-  margin: 0;
+.docs-content {
   color: #d8d0e6;
-  font-family: var(--mono);
   font-size: 11px;
   line-height: 1.42;
-  white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
+}
+
+.docs-content h3,
+.docs-content h4,
+.docs-content p,
+.docs-content ul,
+.docs-content table,
+.docs-content pre {
+  margin: 0 0 11px;
+}
+
+.docs-content h3 {
+  color: var(--accent-deep);
+  font-size: 14px;
+}
+
+.docs-content h4 {
+  color: var(--purple);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.docs-content ul {
+  padding-left: 18px;
+}
+
+.docs-content li + li {
+  margin-top: 3px;
+}
+
+.docs-content code,
+.docs-content pre {
+  font-family: var(--mono);
+}
+
+.docs-content code {
+  border-radius: 3px;
+  padding: 1px 3px;
+  color: var(--cyan);
+  background: rgba(129, 140, 248, 0.1);
+}
+
+.docs-content a {
+  color: var(--cyan);
+  text-underline-offset: 2px;
+}
+
+.docs-content pre {
+  overflow: auto;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--theme-radius);
+  padding: 8px;
+  white-space: pre-wrap;
+}
+
+.docs-content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+
+.docs-content th,
+.docs-content td {
+  border: 1px solid var(--line-subtle);
+  padding: 5px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.docs-content th {
+  color: var(--accent-deep);
+  background: var(--table-head);
 }
 
 .sidebar-head {
@@ -582,7 +651,7 @@ body.ssh-target .layout {
 
 .env-row {
   display: grid;
-  grid-template-columns: minmax(135px, 0.48fr) minmax(0, 1.22fr) minmax(0, 0.96fr) 31px;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.25fr) minmax(0, 0.75fr) 31px;
   gap: 7px;
   align-items: stretch;
   border-bottom: 1px solid rgba(190, 104, 255, 0.14);
@@ -590,7 +659,7 @@ body.ssh-target .layout {
 }
 
 .env-row.no-underlay {
-  grid-template-columns: minmax(135px, 0.48fr) minmax(0, 1fr) 31px;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.25fr) 31px;
 }
 
 .key {
@@ -603,7 +672,8 @@ body.ssh-target .layout {
   font-size: 11px;
   font-weight: 800;
   line-height: 1.35;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .hint {

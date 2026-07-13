@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { ENV_DOCS_PARSER_SOURCE } from "./envDocsParser.js";
 
 export const DEFAULT_SSH_TARGET = {
   host: "",
@@ -81,6 +82,7 @@ function runRemoteNode(config, script) {
 
 function remoteScannerSource() {
   return String.raw`
+${ENV_DOCS_PARSER_SOURCE}
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const PANDEMONIUM_GITHUB_RAW_BASE = "https://raw.githubusercontent.com/bozo-industries/Pandemonium/master";
@@ -302,10 +304,6 @@ function docsForFile(relativePath, docs) {
   return chunks.filter(Boolean).join("\n\n").trim();
 }
 
-function explainRowsWithDocs(rows, fileDocs) {
-  return rows.map((row) => ({ ...row, docs: explanationForKey(row.key, fileDocs) }));
-}
-
 function splitMarkdownSections(markdown) {
   const sections = new Map();
   const lines = markdown.split(/\r?\n/);
@@ -333,31 +331,6 @@ function configSectionsForFile(relativePath, sections) {
     names.push("Provider Credentials");
   }
   return names.map((name) => sections.get(name)).filter(Boolean);
-}
-
-function explanationForKey(key, markdown) {
-  if (!markdown) return "";
-  const lines = markdown.split(/\r?\n/);
-  const tick = String.fromCharCode(96);
-  const fence = tick + tick + tick;
-  const direct = lines.find((line) => line.includes(tick + key + tick));
-  if (direct) return cleanMarkdownLine(direct);
-  const codeIndex = lines.findIndex((line) => line.startsWith(key + "="));
-  if (codeIndex > -1) {
-    const nearby = [];
-    for (let index = Math.max(0, codeIndex - 3); index < codeIndex; index += 1) {
-      const line = lines[index].trim();
-      if (line && !line.startsWith(fence) && !/^[A-Z0-9_]+=/.test(line)) nearby.push(cleanMarkdownLine(line));
-    }
-    return nearby.join(" ");
-  }
-  const prefix = key.split("_").slice(0, 2).join("_");
-  const prefixLine = lines.find((line) => line.includes(prefix) && !line.startsWith(fence));
-  return prefixLine ? cleanMarkdownLine(prefixLine) : "";
-}
-
-function cleanMarkdownLine(line) {
-  return line.replace(/^[-*]\s+/, "").replace(new RegExp(String.fromCharCode(96), "g"), "").replace(/\s+/g, " ").trim();
 }
 
 async function readTextIfExists(filePath) {

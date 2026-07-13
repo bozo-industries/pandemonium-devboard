@@ -1,5 +1,8 @@
 import path from "node:path";
 import { readConfigDocs, readProjectText } from "./githubExamples.js";
+import { explainRowsWithDocs } from "./envDocsParser.js";
+
+export { explainRowsWithDocs };
 
 const FILE_SECTION_TITLES = new Map([
   [".env", "Daemon Env"],
@@ -57,13 +60,6 @@ export function docsForFile(relativePath, docs) {
   return chunks.filter(Boolean).join("\n\n").trim();
 }
 
-export function explainRowsWithDocs(rows, fileDocs) {
-  return rows.map((row) => ({
-    ...row,
-    docs: explanationForKey(row.key, fileDocs)
-  }));
-}
-
 function splitMarkdownSections(markdown) {
   const sections = new Map();
   const lines = markdown.split(/\r?\n/);
@@ -98,42 +94,6 @@ function configSectionsForFile(relativePath, sections) {
     names.push("Provider Credentials");
   }
   return names.map((name) => sections.get(name)).filter(Boolean);
-}
-
-function explanationForKey(key, markdown) {
-  if (!markdown) {
-    return "";
-  }
-
-  const lines = markdown.split(/\r?\n/);
-  const direct = lines.find((line) => line.includes(`\`${key}\``));
-  if (direct) {
-    return cleanMarkdownLine(direct);
-  }
-
-  const codeIndex = lines.findIndex((line) => line.startsWith(`${key}=`));
-  if (codeIndex > -1) {
-    const nearby = [];
-    for (let index = Math.max(0, codeIndex - 3); index < codeIndex; index += 1) {
-      const line = lines[index].trim();
-      if (line && !line.startsWith("```") && !/^[A-Z0-9_]+=/.test(line)) {
-        nearby.push(cleanMarkdownLine(line));
-      }
-    }
-    return nearby.join(" ");
-  }
-
-  const prefix = key.split("_").slice(0, 2).join("_");
-  const prefixLine = lines.find((line) => line.includes(prefix) && !line.startsWith("```"));
-  return prefixLine ? cleanMarkdownLine(prefixLine) : "";
-}
-
-function cleanMarkdownLine(line) {
-  return line
-    .replace(/^[-*]\s+/, "")
-    .replace(/`/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function normalizePath(value) {

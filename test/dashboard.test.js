@@ -9,6 +9,7 @@ import { parseTokenUsage } from "../src/tokenUsage.js";
 import { commitDetails, commitFileDiff, parseNumstat, recentCommits, safeRelativePath } from "../src/git.js";
 import { normalizeSshTarget } from "../src/localSettings.js";
 import { deleteTodo, isTodoCommitSubject, loadTodoBoard, pushTodoChanges, saveTodoDocument } from "../src/todos.js";
+import { explainRowsWithDocs } from "../src/docs.js";
 
 test("LOC analysis splits source and tests and groups modules", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-dashboard-loc-"));
@@ -53,6 +54,11 @@ test("test path detection supports common directory and filename conventions", (
   assert.equal(isTestPath("src/foo/test_helpers.py"), true);
   assert.equal(isTestPath("src/foo/thing.spec.ts"), true);
   assert.equal(isTestPath("src/foo/contest.ts"), false);
+});
+
+test("environment docs turn Markdown table rows into clean hints", () => {
+  const [row] = explainRowsWithDocs([{ key: "SERVICE_STORAGE_ENABLED" }], "| Variable | Purpose |\n| --- | --- |\n| `SERVICE_STORAGE_ENABLED` | Enables the storage backend. |");
+  assert.equal(row.docs, "Enables the storage backend.");
 });
 
 test("token usage parser normalizes totals and recent daily rows", () => {
