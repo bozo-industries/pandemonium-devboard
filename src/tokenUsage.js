@@ -31,7 +31,7 @@ export function parseTokenUsage(raw) {
       date: String(entry.date || entry.day || ""),
       models: normalizeModels(entry.models),
       ...normalizeUsage(entry)
-    })).filter((entry) => entry.date).slice(-30).reverse()
+    })).filter((entry) => entry.date).reverse()
   };
 }
 

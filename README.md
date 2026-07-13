@@ -42,7 +42,7 @@ Use **Detect** to inspect `pandemonium.service` through systemd. Detection check
 
 ## Data and safety model
 
-- LOC analysis reads supported text files under `src/` and ignores dependency, build, cache, and virtual-environment directories.
+- LOC analysis reads only Pandemonium code under `src/` (TypeScript, Python, and SQL), excluding documentation, Todo files, manifests, and configuration.
 - Git operations use fixed argument arrays, validated commit IDs and relative paths, timeouts, and a 4 MB output limit.
 - Token usage invokes `npx ccusage codex daily --json`; a failure is isolated to that card instead of breaking the rest of the overview.
 - Environment writes remain scoped to the selected project root or configured SSH env paths.

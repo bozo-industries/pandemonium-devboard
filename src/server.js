@@ -7,8 +7,8 @@ import { DEFAULT_PROJECT_ROOT, scanPandemoniumProject } from "./pandemonium.js";
 import { detectSshPandemoniumTarget, saveEnvFileOverSsh, scanPandemoniumProjectOverSsh } from "./ssh.js";
 import { analyzeLoc } from "./loc.js";
 import { loadTokenUsage } from "./tokenUsage.js";
-import { commitDetails, commitFileDiff, recentCommits } from "./git.js";
-import { loadLocalSshTarget } from "./localSettings.js";
+import { commitDetails, commitFileDiff, pushBranch, recentCommits } from "./git.js";
+import { loadLocalSshTarget, saveLocalSshTarget } from "./localSettings.js";
 import { deleteTodo, loadTodoBoard, pushTodoChanges, saveTodoDocument } from "./todos.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -26,6 +26,11 @@ const server = http.createServer(async (request, response) => {
       });
     }
 
+    if (url.pathname === "/api/settings/ssh" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      return sendJson(response, 200, { ssh: await saveLocalSshTarget(body.ssh) });
+    }
+
     if (url.pathname === "/api/todos" && request.method === "POST") {
       const body = await readJsonBody(request);
       return sendJson(response, 200, await loadTodoBoard(body.projectRoot || DEFAULT_PROJECT_ROOT));
@@ -33,7 +38,7 @@ const server = http.createServer(async (request, response) => {
 
     if (url.pathname === "/api/todos/save" && request.method === "POST") {
       const body = await readJsonBody(request);
-      return sendJson(response, 200, await saveTodoDocument(body.projectRoot || DEFAULT_PROJECT_ROOT, body.todoId, body.content));
+      return sendJson(response, 200, await saveTodoDocument(body.projectRoot || DEFAULT_PROJECT_ROOT, body.todoId, body.content, body.title));
     }
 
     if (url.pathname === "/api/todos/delete" && request.method === "POST") {
@@ -62,6 +67,20 @@ const server = http.createServer(async (request, response) => {
       });
     }
 
+    if (url.pathname === "/api/overview/loc" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      return sendJson(response, 200, await analyzeLoc(path.resolve(body.projectRoot || DEFAULT_PROJECT_ROOT)));
+    }
+
+    if (url.pathname === "/api/overview/git" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      return sendJson(response, 200, await recentCommits(path.resolve(body.projectRoot || DEFAULT_PROJECT_ROOT), body.commitLimit));
+    }
+
+    if (url.pathname === "/api/overview/tokens" && request.method === "POST") {
+      return sendJson(response, 200, await loadTokenUsage());
+    }
+
     if (url.pathname === "/api/git/commit" && request.method === "POST") {
       const body = await readJsonBody(request);
       const details = await commitDetails(body.projectRoot || DEFAULT_PROJECT_ROOT, body.commit);
@@ -72,6 +91,11 @@ const server = http.createServer(async (request, response) => {
       const body = await readJsonBody(request);
       const diff = await commitFileDiff(body.projectRoot || DEFAULT_PROJECT_ROOT, body.commit, body.path);
       return sendJson(response, 200, diff);
+    }
+
+    if (url.pathname === "/api/git/push" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      return sendJson(response, 200, await pushBranch(body.projectRoot || DEFAULT_PROJECT_ROOT));
     }
 
     if (url.pathname === "/api/scan" && request.method === "POST") {

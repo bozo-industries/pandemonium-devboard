@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Local Dev Dashboard</title>
+    <title>Pandemonium Development</title>
     <link rel="icon" type="image/png" href="/favicon.png">
     <link rel="stylesheet" href="/styles.css">
   </head>
@@ -11,9 +11,9 @@
     <div class="shell dashboard-shell">
       <header class="topbar dashboard-topbar">
         <div class="brand">
-          <p class="kicker">Your project, at a glance</p>
-          <h1>Local Dev Dashboard</h1>
-          <p id="projectSummary">Code, activity, usage, and environment</p>
+          <p class="kicker">Local dashboard</p>
+          <h1>Pandemonium Development</h1>
+          <p id="projectSummary">Automate modern survival. Protect modern living. For time, and all time.</p>
         </div>
       </header>
 
@@ -24,17 +24,6 @@
       </nav>
 
       <section id="overviewPanel" class="tab-panel overview" role="tabpanel" aria-labelledby="overviewTab">
-        <div class="overview-heading">
-          <div>
-            <p class="eyebrow">Workspace pulse</p>
-            <h2 id="overviewTitle">Project overview</h2>
-          </div>
-          <div class="overview-actions">
-            <p id="overviewStatus" class="overview-status">Loading project data…</p>
-            <button id="overviewRefreshButton" class="ghost" type="button">Refresh</button>
-          </div>
-        </div>
-
         <div class="metric-grid" aria-label="Project metrics">
           <article class="metric-card"><span>Production lines</span><strong id="locTotal">—</strong><small id="locSplit">Total minus tests</small></article>
           <article class="metric-card"><span>Production files</span><strong id="locFiles">—</strong><small id="locFilesSplit">Total minus test files</small></article>
@@ -65,7 +54,7 @@
           <article class="dashboard-card git-card">
             <header class="card-heading">
               <div><p class="eyebrow">Repository activity</p><h2>Recent commits</h2></div>
-              <span id="gitBranch" class="card-chip">—</span>
+              <div class="git-card-actions"><button id="gitPushButton" class="ghost" type="button" hidden>Push HEAD</button><span id="gitBranch" class="card-chip">—</span></div>
             </header>
             <div id="gitError" class="panel-error" hidden></div>
             <div class="git-browser">
@@ -143,24 +132,24 @@
 
       <section id="todoPanel" class="tab-panel todo-panel" role="tabpanel" aria-labelledby="todoTab" hidden>
         <header class="todo-toolbar">
-          <div><p class="eyebrow">README.md</p><h2>Todo plans</h2></div>
+          <div class="todo-toolbar-title">
+            <p class="eyebrow">README.md</p><h2>Todo plans</h2>
+          </div>
           <div class="todo-actions">
             <span id="todoStatus" class="overview-status">Load a local project to see its TODOs.</span>
+            <button id="todoNewButton" class="ghost" type="button">New Todo</button>
             <button id="todoSaveButton" class="ghost" type="button" disabled>Save plan</button>
-            <button id="todoRemoveButton" class="danger" type="button" disabled>Remove Todo</button>
             <button id="todoPushButton" type="button" disabled>Commit &amp; push</button>
           </div>
         </header>
         <div class="todo-layout">
-          <aside class="todo-list-panel">
-            <div id="todoList" class="todo-list"></div>
-          </aside>
+          <aside class="todo-list-panel"><div id="todoList" class="todo-list"></div></aside>
           <section class="todo-editor">
-            <div id="todoEmpty" class="commit-empty">Select a README TODO to attach or edit its detailed plan.</div>
+            <div id="todoEmpty" class="commit-empty">Create a Todo to add its detailed plan.</div>
             <div id="todoEditorContent" hidden>
               <header class="todo-editor-heading">
-                <div><p class="eyebrow">Detailed plan</p><h2 id="todoTitle"></h2><p id="todoDocPath"></p></div>
-                <a id="todoGitHubLink" class="ghost todo-github-link" target="_blank" rel="noreferrer" hidden>View on GitHub</a>
+                <label class="todo-title-field"><span>Todo title</span><input id="todoTitle" maxlength="180" placeholder="Describe the work to do"></label>
+                <div class="todo-document-meta"><a id="todoDocLink" class="todo-doc-link" target="_blank" rel="noreferrer" hidden></a><button id="todoRemoveButton" class="danger" type="button" disabled>Remove Todo</button></div>
               </header>
               <textarea id="todoDocument" class="todo-document" spellcheck="true" placeholder="Write the detailed context and plan for this TODO…"></textarea>
             </div>

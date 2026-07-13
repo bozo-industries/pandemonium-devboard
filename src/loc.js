@@ -5,11 +5,9 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-const ALLOWED_EXTENSIONS = new Set([
-  ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json", ".css", ".scss", ".sass",
-  ".less", ".html", ".htm", ".yml", ".yaml", ".toml", ".md", ".txt", ".sql", ".prisma",
-  ".py", ".pyi"
-]);
+// Pandemonium's src/ currently contains TypeScript, Python, and SQL as code.
+// Documentation, manifests, and configuration (Markdown, JSON, TOML, etc.) are deliberately excluded.
+const CODE_EXTENSIONS = new Set([".ts", ".py", ".sql"]);
 
 const SKIP_DIRECTORIES = new Set([
   ".git", ".next", ".cache", "node_modules", "dist", "build", "coverage", ".turbo", ".output",
@@ -32,7 +30,7 @@ export async function analyzeLoc(projectRoot) {
     const parts = normalized.split("/");
     if (parts.some((part) => SKIP_DIRECTORIES.has(part))) continue;
     const extension = path.extname(normalized).toLowerCase();
-    if (!ALLOWED_EXTENSIONS.has(extension)) continue;
+    if (!CODE_EXTENSIONS.has(extension)) continue;
 
     const lines = await countLines(path.join(root, normalized));
     if (lines === 0) continue;
@@ -47,7 +45,14 @@ export async function analyzeLoc(projectRoot) {
     const areaName = isModule ? "modules" : parts[1];
     addBucket(areas, areaName, lines, test);
     if (isModule) addBucket(modules, parts[2], lines, test);
-    addTreePath(tree, isModule ? ["modules", parts[2]] : [parts[1]], lines, test);
+    // Keep dashboard composition readable: product modules are peers, while
+    // daemon is the only area expanded into its first-level submodules.
+    const treePath = isModule
+      ? [parts[2]]
+      : parts[1] === "daemon"
+        ? daemonTreePath(parts)
+        : [parts[1]];
+    addTreePath(tree, treePath, lines, test);
   }
 
   return {
@@ -65,7 +70,7 @@ export async function analyzeLoc(projectRoot) {
 export function isTestPath(relativePath) {
   const normalized = relativePath.replaceAll("\\", "/").toLowerCase();
   const file = path.basename(normalized);
-  return normalized.includes("/test/") || normalized.includes("/tests/") || normalized.includes("/__tests__/") ||
+  return normalized.includes("/test/") || normalized.includes("/tests/") || normalized.includes("/testing/") || normalized.includes("/__tests__/") ||
     normalized.includes("/spec/") || normalized.includes("/__specs__/") ||
     /\.(test|spec)\./.test(file) || /^(test_.+|.+_test)\.py$/.test(file);
 }
@@ -78,21 +83,32 @@ function addBucket(map, name, lines, test) {
   bucket[test ? "tests" : "code"] += lines;
 }
 
+function daemonTreePath(parts) {
+  if (parts.length <= 3) return ["daemon"];
+  const pathParts = ["daemon", parts[2]];
+  if (parts[2] === "internalModules" && parts.length > 4) pathParts.push(parts[3]);
+  return pathParts;
+}
+
 function sortedBuckets(map) {
   return [...map.values()].sort((a, b) => b.lines - a.lines || a.name.localeCompare(b.name));
 }
 
 function makeTree(name) {
-  return { name, code: 0, tests: 0, lines: 0, children: new Map() };
+  return { name, files: 0, codeFiles: 0, testFiles: 0, code: 0, tests: 0, lines: 0, children: new Map() };
 }
 
 function addTreePath(root, parts, lines, test) {
+  root.files += 1;
+  root[test ? "testFiles" : "codeFiles"] += 1;
   root.lines += lines;
   root[test ? "tests" : "code"] += lines;
   let current = root;
   for (const part of parts.filter(Boolean)) {
     if (!current.children.has(part)) current.children.set(part, makeTree(part));
     current = current.children.get(part);
+    current.files += 1;
+    current[test ? "testFiles" : "codeFiles"] += 1;
     current.lines += lines;
     current[test ? "tests" : "code"] += lines;
   }
@@ -101,6 +117,9 @@ function addTreePath(root, parts, lines, test) {
 function finalizeTree(node) {
   return {
     name: node.name,
+    files: node.files,
+    codeFiles: node.codeFiles,
+    testFiles: node.testFiles,
     code: node.code,
     tests: node.tests,
     lines: node.lines,

@@ -13,10 +13,11 @@ export async function recentCommits(projectRoot, requestedLimit = 20) {
   const limit = Math.max(1, Math.min(100, Number(requestedLimit) || 20));
   const format = "%x1e" + ["%H", "%h", "%aI", "%an", "%ae", "%s", "%P"].join("%x1f");
   const stdout = await runGit(root, ["log", `-${limit}`, "--numstat", `--format=${format}`]);
+  const unpushed = await unpushedCommitHashes(root);
   return {
     root,
     branch: (await runGit(root, ["branch", "--show-current"])).trim() || "detached HEAD",
-    commits: parseCommitLogWithStats(stdout)
+    commits: parseCommitLogWithStats(stdout).map((commit) => ({ ...commit, pushed: !unpushed.has(commit.hash) }))
   };
 }
 
@@ -27,7 +28,16 @@ export async function commitDetails(projectRoot, commit) {
   const metadata = parseCommitLog(await runGit(root, ["show", "-s", `--format=${format}`, commit]))[0];
   if (!metadata) throw new Error("Commit not found");
   const files = parseChangedFiles(await runGit(root, ["diff-tree", "--root", "--no-commit-id", "--name-status", "-r", "-M", commit]));
-  return { root, ...metadata, files };
+  const unpushed = await unpushedCommitHashes(root);
+  return { root, ...metadata, pushed: !unpushed.has(metadata.hash), files };
+}
+
+export async function pushBranch(projectRoot) {
+  const root = await gitRoot(projectRoot);
+  const branch = (await runGit(root, ["branch", "--show-current"])).trim();
+  if (!branch) throw new Error("Cannot push a detached HEAD");
+  await runGit(root, ["push", "origin", "HEAD"], 60_000);
+  return { root, branch, commit: (await runGit(root, ["rev-parse", "--short", "HEAD"])).trim() };
 }
 
 export async function commitFileDiff(projectRoot, commit, filePath) {
@@ -101,16 +111,22 @@ async function gitRoot(projectRoot) {
   return (await runGit(root, ["rev-parse", "--show-toplevel"])).trim();
 }
 
+async function unpushedCommitHashes(root) {
+  const upstream = await runGit(root, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]).then((value) => value.trim()).catch(() => "");
+  const output = await runGit(root, ["rev-list", upstream ? `${upstream}..HEAD` : "HEAD"]);
+  return new Set(output.split(/\r?\n/).filter(Boolean));
+}
+
 function assertCommit(commit) {
   if (!/^[0-9a-f]{7,64}$/i.test(String(commit || ""))) throw new Error("Invalid commit id");
 }
 
-async function runGit(root, args) {
+async function runGit(root, args, timeout = 20_000) {
   try {
     const { stdout } = await execFileAsync("git", args, {
       cwd: root,
       encoding: "utf8",
-      timeout: 20_000,
+      timeout,
       maxBuffer: MAX_BUFFER,
       windowsHide: true
     });

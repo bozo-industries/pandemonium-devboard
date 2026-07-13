@@ -1,4 +1,5 @@
 const DEFAULT_PROJECT_ROOT = "C:\\Users\\user\\Code\\Pandemonium";
+const DASHBOARD_TAGLINE = "Automate modern survival. Protect modern living. For time, and all time.";
 const DEFAULT_SSH = {
   host: "",
   identityFile: "",
@@ -7,16 +8,20 @@ const DEFAULT_SSH = {
   rootEnvPath: "",
   sudo: false
 };
+const TARGET_MODE_STORAGE_KEY = "local-dev-dashboard:environment-target-mode";
+const PROJECT_TIME_ZONE = "Europe/Berlin";
 
 const state = {
-  targetMode: "local",
+  targetMode: storedTargetMode(),
   projectRoot: DEFAULT_PROJECT_ROOT,
   ssh: { ...DEFAULT_SSH },
   scan: null,
   activeTab: "overview",
   overview: null,
+  overviewRequest: 0,
   todoBoard: null,
   selectedTodoId: "",
+  creatingTodo: false,
   selectedCommit: "",
   selectedDiffPath: "",
   selectedId: "",
@@ -62,9 +67,6 @@ const els = {
   environmentPanel: document.querySelector("#environmentPanel"),
   todoPanel: document.querySelector("#todoPanel"),
   refreshButton: document.querySelector("#refreshButton"),
-  overviewRefreshButton: document.querySelector("#overviewRefreshButton"),
-  overviewTitle: document.querySelector("#overviewTitle"),
-  overviewStatus: document.querySelector("#overviewStatus"),
   locTotal: document.querySelector("#locTotal"),
   locFiles: document.querySelector("#locFiles"),
   locFilesSplit: document.querySelector("#locFilesSplit"),
@@ -72,13 +74,16 @@ const els = {
   locScope: document.querySelector("#locScope"),
   locError: document.querySelector("#locError"),
   locBreakdown: document.querySelector("#locBreakdown"),
+  locCard: document.querySelector(".loc-card"),
   tokenTotal: document.querySelector("#tokenTotal"),
   tokenCost: document.querySelector("#tokenCost"),
   tokenSplit: document.querySelector("#tokenSplit"),
   tokenError: document.querySelector("#tokenError"),
   tokenBreakdown: document.querySelector("#tokenBreakdown"),
   tokenDaily: document.querySelector("#tokenDaily"),
+  usageCard: document.querySelector(".usage-card"),
   gitBranch: document.querySelector("#gitBranch"),
+  gitPushButton: document.querySelector("#gitPushButton"),
   gitError: document.querySelector("#gitError"),
   commitList: document.querySelector("#commitList"),
   commitViewer: document.querySelector("#commitViewer"),
@@ -97,9 +102,9 @@ const els = {
   todoEmpty: document.querySelector("#todoEmpty"),
   todoEditorContent: document.querySelector("#todoEditorContent"),
   todoTitle: document.querySelector("#todoTitle"),
-  todoDocPath: document.querySelector("#todoDocPath"),
-  todoGitHubLink: document.querySelector("#todoGitHubLink"),
+  todoDocLink: document.querySelector("#todoDocLink"),
   todoDocument: document.querySelector("#todoDocument"),
+  todoNewButton: document.querySelector("#todoNewButton"),
   todoSaveButton: document.querySelector("#todoSaveButton"),
   todoRemoveButton: document.querySelector("#todoRemoveButton"),
   todoPushButton: document.querySelector("#todoPushButton")
@@ -110,7 +115,6 @@ els.projectForm.addEventListener("submit", (event) => {
   syncTargetFromForm();
   scan();
 });
-els.overviewRefreshButton.addEventListener("click", loadOverview);
 els.overviewTab.addEventListener("click", () => selectTab("overview"));
 els.environmentTab.addEventListener("click", () => selectTab("environment"));
 els.todoTab.addEventListener("click", () => selectTab("todo"));
@@ -119,8 +123,8 @@ els.detectSshButton.addEventListener("click", detectSsh);
 for (const input of els.targetMode) {
   input.addEventListener("change", () => {
     syncTargetFromForm();
+    persistTargetMode();
     renderTargetMode();
-    if (state.targetMode === "ssh") selectTab("environment");
   });
 }
 els.showUnderlay.addEventListener("change", renderSelectedFile);
@@ -129,8 +133,19 @@ els.revealValues.addEventListener("change", renderSelectedFile);
 els.addRowButton.addEventListener("click", addEnvRow);
 els.saveButton.addEventListener("click", saveSelectedFile);
 els.todoSaveButton.addEventListener("click", saveTodoPlan);
+els.todoNewButton.addEventListener("click", createTodo);
 els.todoRemoveButton.addEventListener("click", removeTodo);
 els.todoPushButton.addEventListener("click", pushTodoPlans);
+els.gitPushButton.addEventListener("click", pushHead);
+new ResizeObserver(scheduleUsageCardHeight).observe(els.locCard);
+for (const input of [els.sshHost, els.sshIdentityFile, els.sshProjectRoot, els.sshLiveEnvRoot, els.sshRootEnvPath]) {
+  input.addEventListener("input", queueSshTargetSave);
+}
+els.sshSudo.addEventListener("change", queueSshTargetSave);
+window.addEventListener("hashchange", () => {
+  const tab = tabFromHash();
+  if (tab !== state.activeTab) selectTab(tab, false);
+});
 
 renderTargetMode();
 loadDefaults();
@@ -145,11 +160,12 @@ async function loadDefaults() {
     state.ssh = { ...DEFAULT_SSH };
   }
   writeTargetToForm();
-  selectTab("overview");
+  selectTab(tabFromHash(), false);
 }
 
-function selectTab(tab) {
-  if ((tab === "overview" || tab === "todo") && state.targetMode === "ssh") tab = "environment";
+function selectTab(tab, updateHash = true) {
+  tab = ["overview", "environment", "todo"].includes(tab) ? tab : "overview";
+  if (updateHash && location.hash !== `#${tab}`) history.replaceState(null, "", `#${tab}`);
   state.activeTab = tab;
   const overview = tab === "overview";
   const todo = tab === "todo";
@@ -164,7 +180,7 @@ function selectTab(tab) {
   els.todoPanel.hidden = !todo;
   document.body.classList.toggle("overview-active", overview);
   if (overview) {
-    if (!state.overview || state.overview.projectRoot !== state.projectRoot) loadOverview();
+    if (!state.overview || state.overview.projectRoot !== DEFAULT_PROJECT_ROOT) loadOverview();
     else renderOverview();
   } else if (todo) {
     loadTodos();
@@ -173,13 +189,17 @@ function selectTab(tab) {
   }
 }
 
+function tabFromHash() {
+  const tab = location.hash.slice(1).toLowerCase();
+  return ["overview", "environment", "todo"].includes(tab) ? tab : "overview";
+}
+
 async function loadTodos() {
-  if (state.targetMode !== "local") return selectTab("environment");
   els.todoStatus.textContent = "Loading README TODOs…";
   els.todoStatus.className = "overview-status loading";
   try {
-    state.todoBoard = await api("/api/todos", { projectRoot: state.projectRoot });
-    if (!state.selectedTodoId || !state.todoBoard.todos.some((todo) => todo.id === state.selectedTodoId)) {
+    state.todoBoard = await api("/api/todos", { projectRoot: DEFAULT_PROJECT_ROOT });
+    if (!state.creatingTodo && (!state.selectedTodoId || !state.todoBoard.todos.some((todo) => todo.id === state.selectedTodoId))) {
       state.selectedTodoId = state.todoBoard.todos[0]?.id || "";
     }
     renderTodos();
@@ -204,26 +224,41 @@ function renderTodos() {
     const title = document.createElement("strong");
     title.textContent = todo.title;
     const meta = document.createElement("small");
-    meta.textContent = todo.docPath ? todo.docPath : "No detailed plan attached";
+    meta.textContent = todoHistorySummary(todo.history);
     button.append(title, meta);
     button.addEventListener("click", () => {
+      state.creatingTodo = false;
       state.selectedTodoId = todo.id;
       renderTodos();
     });
     els.todoList.append(button);
   }
   const selected = todos.find((todo) => todo.id === state.selectedTodoId);
-  els.todoEmpty.hidden = Boolean(selected);
-  els.todoEditorContent.hidden = !selected;
-  els.todoSaveButton.disabled = !selected;
+  const editing = Boolean(selected || state.creatingTodo);
+  els.todoNewButton.disabled = !state.todoBoard;
+  els.todoEmpty.hidden = editing;
+  els.todoEditorContent.hidden = !editing;
+  els.todoSaveButton.disabled = !editing;
   els.todoRemoveButton.disabled = !selected;
-  els.todoPushButton.disabled = !selected;
-  if (!selected) return;
-  els.todoTitle.textContent = selected.title;
-  els.todoDocPath.textContent = selected.docPath || "Save to attach docs/todo/<todo-name>.md";
-  els.todoDocument.value = selected.content || defaultTodoPlan(selected.title);
-  els.todoGitHubLink.hidden = !selected.githubUrl;
-  els.todoGitHubLink.href = selected.githubUrl || "#";
+  els.todoPushButton.disabled = !state.todoBoard;
+  if (!editing) return;
+  els.todoTitle.value = selected?.title || "";
+  els.todoDocLink.hidden = !selected?.githubUrl;
+  els.todoDocLink.href = selected?.githubUrl || "#";
+  els.todoDocLink.textContent = selected?.docPath || "";
+  els.todoDocument.value = selected?.content || defaultTodoPlan(selected?.title || "New Todo");
+}
+
+function todoHistorySummary(history) {
+  if (!history) return "Not committed yet";
+  return `created: ${history.created.shortHash} · last edited: ${history.lastEdited.shortHash} (${formatShortDate(history.lastEdited.date)})`;
+}
+
+function createTodo() {
+  state.creatingTodo = true;
+  state.selectedTodoId = "";
+  renderTodos();
+  els.todoTitle.focus();
 }
 
 async function removeTodo() {
@@ -236,7 +271,7 @@ async function removeTodo() {
   els.todoStatus.className = "overview-status loading";
   try {
     state.todoBoard = await api("/api/todos/delete", {
-      projectRoot: state.projectRoot,
+      projectRoot: DEFAULT_PROJECT_ROOT,
       todoId: selected.id
     });
     state.selectedTodoId = state.todoBoard.todos[0]?.id || "";
@@ -253,17 +288,20 @@ async function removeTodo() {
 
 async function saveTodoPlan() {
   const selected = state.todoBoard?.todos.find((todo) => todo.id === state.selectedTodoId);
-  if (!selected) return;
+  if (!selected && !state.creatingTodo) return;
   els.todoSaveButton.disabled = true;
   els.todoStatus.textContent = "Saving Todo plan…";
   els.todoStatus.className = "overview-status loading";
   try {
     state.todoBoard = await api("/api/todos/save", {
-      projectRoot: state.projectRoot,
-      todoId: selected.id,
+      projectRoot: DEFAULT_PROJECT_ROOT,
+      todoId: selected?.id || "",
+      title: els.todoTitle.value,
       content: els.todoDocument.value
     });
-    state.selectedTodoId = state.todoBoard.todos.find((todo) => todo.title === selected.title)?.id || "";
+    const title = els.todoTitle.value.trim();
+    state.creatingTodo = false;
+    state.selectedTodoId = state.todoBoard.todos.find((todo) => todo.title === title)?.id || state.todoBoard.todos[0]?.id || "";
     renderTodos();
     els.todoStatus.textContent = "Saved README link and Todo plan locally";
     els.todoStatus.className = "overview-status ok";
@@ -281,7 +319,7 @@ async function pushTodoPlans() {
   els.todoStatus.textContent = "Committing and pushing Todo plans…";
   els.todoStatus.className = "overview-status loading";
   try {
-    const result = await api("/api/todos/push", { projectRoot: state.projectRoot });
+    const result = await api("/api/todos/push", { projectRoot: DEFAULT_PROJECT_ROOT });
     els.todoStatus.textContent = `Pushed Todo plans in ${result.commit}`;
     els.todoStatus.className = "overview-status ok";
   } catch (error) {
@@ -293,47 +331,52 @@ async function pushTodoPlans() {
 }
 
 async function loadOverview() {
-  syncTargetFromForm();
-  if (state.targetMode !== "local") return selectTab("environment");
-  els.overviewStatus.textContent = "Refreshing LOC, usage, and Git history…";
-  els.overviewStatus.className = "overview-status loading";
-  els.overviewRefreshButton.disabled = true;
+  const request = ++state.overviewRequest;
+  state.overview = {
+    projectRoot: DEFAULT_PROJECT_ROOT,
+    loc: { pending: true },
+    tokens: { pending: true },
+    git: { pending: true }
+  };
+  renderOverview();
+  const requests = [
+    loadOverviewPart(request, "loc", "/api/overview/loc", { projectRoot: DEFAULT_PROJECT_ROOT }, renderLoc),
+    loadOverviewPart(request, "tokens", "/api/overview/tokens", {}, renderTokens),
+    loadOverviewPart(request, "git", "/api/overview/git", { projectRoot: DEFAULT_PROJECT_ROOT, commitLimit: 30 }, renderGit)
+  ];
+  await Promise.all(requests);
+}
+
+async function loadOverviewPart(request, key, path, body, render) {
   try {
-    const response = await api("/api/overview", { projectRoot: state.projectRoot, commitLimit: 30 });
-    state.overview = response;
-    state.projectRoot = response.projectRoot;
-    els.projectRoot.value = response.projectRoot;
-    renderOverview();
-    const failures = [response.loc, response.tokens, response.git].filter((part) => !part.ok).length;
-    els.overviewStatus.textContent = failures ? `Loaded with ${failures} unavailable data source${failures === 1 ? "" : "s"}` : "All project signals are current";
-    els.overviewStatus.className = `overview-status ${failures ? "warning" : "ok"}`;
+    const data = await api(path, body);
+    if (request !== state.overviewRequest) return;
+    state.overview[key] = { ok: true, data };
   } catch (error) {
-    els.overviewStatus.textContent = error.message;
-    els.overviewStatus.className = "overview-status error";
-  } finally {
-    els.overviewRefreshButton.disabled = false;
+    if (request !== state.overviewRequest) return;
+    state.overview[key] = { ok: false, error: error.message };
   }
+  render(state.overview[key]);
 }
 
 function renderOverview() {
   const response = state.overview;
-  const projectName = response.projectRoot.split(/[\\/]/).filter(Boolean).at(-1) || "Project";
-  els.overviewTitle.textContent = projectName;
-  els.projectSummary.textContent = response.projectRoot;
+  els.projectSummary.textContent = DASHBOARD_TAGLINE;
   renderLoc(response.loc);
   renderTokens(response.tokens);
   renderGit(response.git);
 }
 
 function renderLoc(result) {
-  els.locError.hidden = result.ok;
-  els.locError.textContent = result.ok ? "" : result.error;
+  const pending = result?.pending;
+  els.locError.hidden = pending || result.ok;
+  els.locError.textContent = pending || result.ok ? "" : result.error;
   els.locBreakdown.textContent = "";
-  if (!result.ok) {
+  if (pending || !result.ok) {
     els.locTotal.textContent = "—";
     els.locFiles.textContent = "—";
-    els.locSplit.textContent = "LOC unavailable";
-    els.locFilesSplit.textContent = "File counts unavailable";
+    els.locSplit.textContent = pending ? "Loading production lines" : "LOC unavailable";
+    els.locFilesSplit.textContent = pending ? "Loading source files" : "File counts unavailable";
     return;
   }
   const data = result.data;
@@ -342,47 +385,122 @@ function renderLoc(result) {
   els.locFilesSplit.textContent = `${formatNumber(data.totals.files)} total − ${formatNumber(data.totals.testFiles)} test files`;
   els.locSplit.textContent = `${formatNumber(data.totals.lines)} total − ${formatNumber(data.totals.tests)} tests (${data.testPercent}%)`;
   els.locScope.textContent = data.scope;
-  const extraAreas = new Set(["runtime", "ui", "daemon"]);
-  const buckets = [
-    ...data.modules,
-    ...data.areas.filter((item) => extraAreas.has(item.name))
-  ].sort((a, b) => b.code - a.code || a.name.localeCompare(b.name));
-  const max = Math.max(1, ...buckets.map((item) => item.code));
-  for (const item of buckets.slice(0, 12)) {
-    const row = document.createElement("div");
-    row.className = "breakdown-row";
-    const head = document.createElement("div");
-    head.className = "breakdown-head";
-    const name = document.createElement("strong");
-    name.textContent = item.name;
-    const value = document.createElement("span");
-    value.textContent = `${formatNumber(item.code)} lines · ${formatNumber(item.tests)} tests`;
-    head.append(name, value);
-    const track = document.createElement("div");
-    track.className = "breakdown-track";
-    const bar = document.createElement("span");
-    bar.style.width = `${Math.max(2, (item.code / max) * 100)}%`;
-    track.append(bar);
-    row.append(head, track);
-    els.locBreakdown.append(row);
+  const moduleNames = new Set(data.modules.map((module) => module.name));
+  const nodes = data.tree?.children || [];
+  const moduleNodes = nodes.filter((node) => moduleNames.has(node.name));
+  renderLocSection("Daemon + runtime", nodes.filter((node) => !moduleNames.has(node.name)));
+  renderLocSection("Modules", [locTreeGroup("modules", moduleNodes)]);
+  scheduleUsageCardHeight();
+}
+
+function scheduleUsageCardHeight() {
+  requestAnimationFrame(() => {
+    const height = Math.ceil(els.locCard.getBoundingClientRect().height);
+    if (height > 0) els.usageCard.style.height = `${height}px`;
+  });
+}
+
+function renderLocSection(title, nodes) {
+  if (!nodes.length) return;
+  const section = document.createElement("section");
+  section.className = "loc-tree-section";
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  const tree = document.createElement("div");
+  tree.className = "loc-tree";
+  section.append(heading, tree);
+  els.locBreakdown.append(section);
+  renderLocTree(nodes, 0, tree);
+}
+
+function renderLocTree(nodes, depth = 0, container) {
+  for (const node of nodes) {
+    const hasChildren = node.children?.length > 0;
+    const branch = hasChildren ? document.createElement("details") : document.createElement("div");
+    branch.className = hasChildren ? "loc-tree-branch" : "loc-tree-leaf";
+    if (hasChildren) branch.open = true;
+
+    const row = hasChildren ? document.createElement("summary") : document.createElement("div");
+    row.className = "loc-tree-row";
+    row.dataset.depth = String(depth);
+
+    const name = document.createElement("span");
+    name.className = "loc-tree-name";
+    const marker = document.createElement("span");
+    marker.className = `loc-tree-marker ${hasChildren ? "folder" : "file"}`;
+    const label = document.createElement("span");
+    label.textContent = hasChildren ? `${node.name}/` : node.name;
+    name.append(marker, label);
+
+    const stats = document.createElement("span");
+    stats.className = "loc-tree-stats";
+    stats.append(
+      locTreeStat("code", node.code),
+      locTreeStat("tests", node.tests),
+      locTreeStat("files", node.files)
+    );
+
+    row.append(name, stats);
+    branch.append(row);
+    container.append(branch);
+
+    if (hasChildren) {
+      const children = document.createElement("div");
+      children.className = "loc-tree-children";
+      branch.append(children);
+      renderLocTree(node.children, depth + 1, children);
+    }
   }
 }
 
+function locTreeStat(name, value) {
+  const stat = document.createElement("span");
+  stat.className = `loc-tree-stat ${name}`;
+  const label = document.createElement("small");
+  label.textContent = name;
+  const amount = document.createElement("strong");
+  amount.textContent = formatNumber(value);
+  stat.append(label, amount);
+  return stat;
+}
+
+function locTreeGroup(name, children) {
+  return children.reduce((group, child) => ({
+    ...group,
+    files: group.files + child.files,
+    codeFiles: group.codeFiles + child.codeFiles,
+    testFiles: group.testFiles + child.testFiles,
+    code: group.code + child.code,
+    tests: group.tests + child.tests,
+    lines: group.lines + child.lines
+  }), {
+    name,
+    files: 0,
+    codeFiles: 0,
+    testFiles: 0,
+    code: 0,
+    tests: 0,
+    lines: 0,
+    children
+  });
+}
+
 function renderTokens(result) {
-  els.tokenError.hidden = result.ok;
-  els.tokenError.textContent = result.ok ? "" : result.error;
+  const pending = result?.pending;
+  els.tokenError.hidden = pending || result.ok;
+  els.tokenError.textContent = pending || result.ok ? "" : result.error;
   els.tokenBreakdown.textContent = "";
   els.tokenDaily.textContent = "";
-  if (!result.ok) {
+  if (pending || !result.ok) {
     els.tokenTotal.textContent = "—";
     els.tokenCost.textContent = "—";
-    els.tokenSplit.textContent = "Usage unavailable";
+    els.tokenSplit.textContent = pending ? "Loading Codex usage" : "Usage unavailable";
     return;
   }
   const { totals, daily } = result.data;
   els.tokenTotal.textContent = compactNumber(totals.totalTokens);
   els.tokenCost.textContent = formatCost(totals.costUSD);
-  els.tokenSplit.textContent = `${compactNumber(totals.inputTokens)} input · ${compactNumber(totals.outputTokens)} output`;
+  els.tokenSplit.textContent = `${compactNumber(totals.inputTokens)} input · ${compactNumber(totals.outputTokens)} output · ${compactNumber(totals.cacheReadTokens)} cache`;
   const items = [
     ["Input", totals.inputTokens], ["Output", totals.outputTokens],
     ["Reasoning", totals.reasoningTokens], ["Cache read", totals.cacheReadTokens]
@@ -395,35 +513,53 @@ function renderTokens(result) {
     els.tokenBreakdown.append(item);
   }
   if (daily.length) {
-    const title = document.createElement("strong");
+    const title = document.createElement("div");
     title.className = "daily-title";
-    title.textContent = "Recent days";
+    for (const label of ["Recent days", "Input", "Output", "Cache", "Price"]) {
+      const cell = document.createElement("span");
+      cell.textContent = label;
+      title.append(cell);
+    }
     els.tokenDaily.append(title);
-    for (const day of daily.slice(0, 7)) {
+    for (const day of daily) {
       const item = document.createElement("div");
       item.className = "daily-row";
-      item.innerHTML = `<span></span><strong></strong><small></small>`;
-      item.querySelector("span").textContent = day.date;
-      item.querySelector("strong").textContent = compactNumber(day.totalTokens);
-      item.querySelector("small").textContent = formatCost(day.costUSD);
+      for (const value of [
+        day.date,
+        compactNumber(day.inputTokens),
+        compactNumber(day.outputTokens),
+        compactNumber(day.cacheReadTokens),
+        formatCost(day.costUSD)
+      ]) {
+        const cell = document.createElement("span");
+        cell.textContent = value;
+        item.append(cell);
+      }
       els.tokenDaily.append(item);
     }
   }
 }
 
 function renderGit(result) {
-  els.gitError.hidden = result.ok;
-  els.gitError.textContent = result.ok ? "" : result.error;
+  const pending = result?.pending;
+  els.gitError.hidden = pending || result.ok;
+  els.gitError.textContent = pending || result.ok ? "" : result.error;
   els.commitList.textContent = "";
-  els.gitBranch.textContent = result.ok ? result.data.branch : "Unavailable";
+  els.gitBranch.textContent = pending ? "Loading…" : result.ok ? result.data.branch : "Unavailable";
+  els.gitPushButton.hidden = pending || !result.ok || !result.data.commits.some((commit) => !commit.pushed);
+  if (pending) {
+    els.commitList.textContent = "Loading commits…";
+    return;
+  }
   if (!result.ok) return;
   for (const commit of result.data.commits) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `commit-item${commit.hash === state.selectedCommit ? " active" : ""}`;
-    button.innerHTML = `<span class="commit-dot"></span><span class="commit-copy"><strong></strong><small></small></span><span class="commit-stats"><span class="additions"></span><span class="deletions"></span></span><code></code>`;
+    button.innerHTML = `<span class="commit-dot"></span><span class="commit-copy"><strong></strong><small></small><span class="commit-push-state" hidden>Not pushed</span></span><span class="commit-stats"><span class="additions"></span><span class="deletions"></span></span><code></code>`;
     button.querySelector("strong").textContent = commit.subject;
     button.querySelector("small").textContent = `${commit.author} · ${relativeDate(commit.date)}`;
+    button.querySelector(".commit-push-state").hidden = commit.pushed;
     button.querySelector(".additions").textContent = `+${formatNumber(commit.additions)}`;
     button.querySelector(".deletions").textContent = `−${formatNumber(commit.deletions)}`;
     button.querySelector("code").textContent = commit.shortHash;
@@ -448,7 +584,7 @@ async function loadCommit(commit) {
   els.diffViewer.textContent = "Choose a changed file to view its patch.";
   renderGit(state.overview.git);
   try {
-    const details = await api("/api/git/commit", { projectRoot: state.projectRoot, commit });
+    const details = await api("/api/git/commit", { projectRoot: DEFAULT_PROJECT_ROOT, commit });
     els.commitSubject.textContent = details.subject;
     els.commitMeta.textContent = `${details.author} <${details.email}> · ${formatDate(details.date)}`;
     els.commitHash.textContent = details.shortHash;
@@ -474,6 +610,23 @@ async function loadCommit(commit) {
   }
 }
 
+async function pushHead() {
+  if (!confirm("Push the entire current branch (HEAD), including all local commits, to origin?")) return;
+  els.gitPushButton.disabled = true;
+  els.gitPushButton.textContent = "Pushing…";
+  try {
+    await api("/api/git/push", { projectRoot: DEFAULT_PROJECT_ROOT });
+    await loadOverview();
+    if (state.selectedCommit) await loadCommit(state.selectedCommit);
+  } catch (error) {
+    els.gitError.hidden = false;
+    els.gitError.textContent = error.message;
+  } finally {
+    els.gitPushButton.disabled = false;
+    els.gitPushButton.textContent = "Push HEAD";
+  }
+}
+
 async function loadDiff(commit, filePath, button) {
   state.selectedDiffPath = filePath;
   for (const item of els.changedFiles.children) item.classList.toggle("active", item === button);
@@ -481,7 +634,7 @@ async function loadDiff(commit, filePath, button) {
   els.diffStatus.textContent = "Loading patch…";
   els.diffViewer.textContent = "";
   try {
-    const result = await api("/api/git/diff", { projectRoot: state.projectRoot, commit, path: filePath });
+    const result = await api("/api/git/diff", { projectRoot: DEFAULT_PROJECT_ROOT, commit, path: filePath });
     if (state.selectedCommit !== commit || state.selectedDiffPath !== filePath) return;
     els.diffViewer.textContent = result.patch || "No textual patch for this file.";
     els.diffStatus.textContent = result.truncated ? "Output truncated" : "";
@@ -529,6 +682,7 @@ async function detectSsh() {
       sudo: Boolean(detected.sudo)
     };
     writeTargetToForm();
+    await saveSshTarget();
     setStatus(`Detected checkout ${state.ssh.projectRoot} and live env ${state.ssh.liveEnvRoot}`, "ok");
   } catch (error) {
     setStatus(error.message, "error");
@@ -584,10 +738,7 @@ async function saveSelectedFile() {
 }
 
 function render() {
-  const totals = scanTotals();
-  els.projectSummary.textContent = state.scan
-    ? `${state.targetMode.toUpperCase()} ${state.scan.files.length} files, ${totals.total} variables`
-    : "Local Pandemonium env files";
+  els.projectSummary.textContent = DASHBOARD_TAGLINE;
   els.fileCount.textContent = state.scan ? `${state.scan.files.length} files` : "No scan";
   renderFileList();
   renderSelectedFile();
@@ -867,6 +1018,7 @@ function syncTargetFromForm() {
 }
 
 function writeTargetToForm() {
+  for (const input of els.targetMode) input.checked = input.value === state.targetMode;
   els.projectRoot.value = state.projectRoot;
   els.sshHost.value = state.ssh.host;
   els.sshIdentityFile.value = state.ssh.identityFile;
@@ -876,16 +1028,48 @@ function writeTargetToForm() {
   els.sshSudo.checked = state.ssh.sudo;
 }
 
+function storedTargetMode() {
+  try {
+    return localStorage.getItem(TARGET_MODE_STORAGE_KEY) === "ssh" ? "ssh" : "local";
+  } catch {
+    return "local";
+  }
+}
+
+function persistTargetMode() {
+  try {
+    localStorage.setItem(TARGET_MODE_STORAGE_KEY, state.targetMode);
+  } catch {
+    // Browser storage can be disabled; Environment still works for this session.
+  }
+}
+
+let sshTargetSaveTimer;
+
+function queueSshTargetSave() {
+  syncTargetFromForm();
+  clearTimeout(sshTargetSaveTimer);
+  sshTargetSaveTimer = setTimeout(() => {
+    saveSshTarget().catch((error) => setStatus(`Could not save SSH settings: ${error.message}`, "error"));
+  }, 350);
+}
+
+async function saveSshTarget() {
+  syncTargetFromForm();
+  const result = await api("/api/settings/ssh", { ssh: state.ssh });
+  state.ssh = { ...DEFAULT_SSH, ...(result.ssh || {}) };
+}
+
 function renderTargetMode() {
   const ssh = state.targetMode === "ssh";
   els.sshPanel.hidden = !ssh;
   els.detectSshButton.hidden = !ssh;
   els.localTarget.hidden = ssh;
   document.body.classList.toggle("ssh-target", ssh);
-  els.overviewTab.disabled = ssh;
-  els.todoTab.disabled = ssh;
-  els.overviewTab.title = ssh ? "Overview currently uses a local Git checkout" : "Project overview";
-  els.todoTab.title = ssh ? "Todo plans currently use a local Git checkout" : "README Todo plans";
+  els.overviewTab.disabled = false;
+  els.todoTab.disabled = false;
+  els.overviewTab.title = "Project overview";
+  els.todoTab.title = "README Todo plans";
 }
 
 function scanPayload() {
@@ -937,7 +1121,19 @@ function formatDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("en-GB", {
     dateStyle: "medium",
-    timeStyle: "short"
+    timeStyle: "short",
+    timeZone: PROJECT_TIME_ZONE
+  }).format(date);
+}
+
+function formatShortDate(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: PROJECT_TIME_ZONE
   }).format(date);
 }
 

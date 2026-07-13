@@ -25,6 +25,13 @@ export async function loadLocalSshTarget() {
   }
 }
 
+export async function saveLocalSshTarget(value) {
+  const target = normalizeSshTarget(value);
+  await fs.mkdir(path.dirname(localSshTargetPath), { recursive: true });
+  await fs.writeFile(localSshTargetPath, `${JSON.stringify(target, null, 2)}\n`, "utf8");
+  return target;
+}
+
 export function normalizeSshTarget(value = {}) {
   return {
     host: stringValue(value.host),
