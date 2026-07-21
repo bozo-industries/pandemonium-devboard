@@ -7,6 +7,7 @@ import test from "node:test";
 import { analyzeLoc, isTestPath } from "../src/loc.js";
 import { parseTokenUsage } from "../src/tokenUsage.js";
 import { commitDetails, commitFileDiff, parseNumstat, recentCommits, safeRelativePath } from "../src/git.js";
+import { loadCommitMemory, normalizeCommitMemory } from "../src/jolli.js";
 import { normalizeSshTarget } from "../src/localSettings.js";
 import { deleteTodo, isTodoCommitSubject, loadTodoBoard, pushTodoChanges, saveTodoDocument } from "../src/todos.js";
 import { explainRowsWithDocs } from "../src/docs.js";
@@ -118,6 +119,20 @@ test("numstat parser totals additions, deletions, and binary file entries", () =
     deletions: 2,
     filesChanged: 2
   });
+});
+
+test("Jolli commit memory is normalized and missing summaries remain optional", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-dashboard-jolli-"));
+  const payload = {
+    commitHash: "abcdef0123456789",
+    generatedAt: "2026-07-18T08:48:45.706Z",
+    recap: "Reduced repeated matching work.",
+    jolliDocUrl: "https://jolli.example/memory",
+    topics: [{ title: "Cache matching facts", category: "performance", importance: "major", filesAffected: ["src/matcher.js"] }]
+  };
+  const result = await loadCommitMemory(root, "abcdef0", async () => JSON.stringify(payload));
+  assert.deepEqual(result, { available: true, memory: normalizeCommitMemory(payload) });
+  assert.deepEqual(await loadCommitMemory(root, "abcdef0", async () => "No summary found"), { available: true, memory: null });
 });
 
 test("local SSH settings are normalized without retaining unknown fields", () => {

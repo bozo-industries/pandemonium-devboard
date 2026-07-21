@@ -8,13 +8,14 @@ import { detectSshPandemoniumTarget, saveEnvFileOverSsh, scanPandemoniumProjectO
 import { analyzeLoc } from "./loc.js";
 import { loadTokenUsage } from "./tokenUsage.js";
 import { commitDetails, commitFileDiff, pushBranch, recentCommits } from "./git.js";
+import { loadCommitMemory } from "./jolli.js";
 import { loadLocalSshTarget, saveLocalSshTarget } from "./localSettings.js";
 import { deleteTodo, loadTodoBoard, pushTodoChanges, saveTodoDocument } from "./todos.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.resolve(__dirname, "..", "public");
 const port = Number(process.env.ENV_MANAGER_PORT || 5177);
-const host = process.env.ENV_MANAGER_HOST || "127.0.0.1";
+const host = process.env.ENV_MANAGER_HOST || "0.0.0.0";
 
 const server = http.createServer(async (request, response) => {
   try {
@@ -85,6 +86,11 @@ const server = http.createServer(async (request, response) => {
       const body = await readJsonBody(request);
       const details = await commitDetails(body.projectRoot || DEFAULT_PROJECT_ROOT, body.commit);
       return sendJson(response, 200, details);
+    }
+
+    if (url.pathname === "/api/git/memory" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      return sendJson(response, 200, await loadCommitMemory(body.projectRoot || DEFAULT_PROJECT_ROOT, body.commit));
     }
 
     if (url.pathname === "/api/git/diff" && request.method === "POST") {

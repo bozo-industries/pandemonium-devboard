@@ -1112,6 +1112,7 @@ body.overview-active .overview {
 }
 
 .git-card-actions { position: relative; display: flex; align-items: center; gap: 7px; }
+.git-card-actions .card-chip { max-width: none; flex: none; }
 .git-card-actions button { min-height: 26px; padding: 0 8px; font-size: 10px; }
 .git-push-count {
   min-height: 22px;
@@ -1507,6 +1508,23 @@ body.overview-active .overview {
 .commit-detail-header code { color: var(--cyan); }
 .commit-body { margin-top: 10px; color: var(--muted); white-space: pre-wrap; }
 
+.jolli-memory {
+  margin-top: 11px;
+  border: 1px solid rgba(167, 139, 250, 0.2);
+  border-radius: 7px;
+  background: rgba(129, 140, 248, 0.045);
+  padding: 9px;
+}
+
+.jolli-memory > header { display: flex; justify-content: space-between; gap: 8px; }
+.jolli-memory > header span { color: var(--muted); font-size: 9px; }
+.jolli-recap { margin: 8px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; white-space: pre-wrap; }
+.jolli-topic { margin-top: 7px; border-top: 1px solid var(--line); padding-top: 7px; }
+.jolli-topic summary { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+.jolli-topic summary strong { margin-right: auto; font-size: 10px; }
+.jolli-topic summary span { border: 1px solid var(--line); border-radius: 999px; padding: 1px 5px; color: var(--purple); font-size: 8px; }
+.jolli-topic > strong { display: block; margin-top: 9px; color: var(--cyan); font-size: 9px; }
+.jolli-topic p { margin-top: 3px; color: var(--muted); font-size: 10px; line-height: 1.5; white-space: pre-wrap; }
 .changed-files {
   display: flex;
   flex-wrap: wrap;

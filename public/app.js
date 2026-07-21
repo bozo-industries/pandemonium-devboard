@@ -97,6 +97,9 @@ const els = {
   commitMeta: document.querySelector("#commitMeta"),
   commitHash: document.querySelector("#commitHash"),
   commitBody: document.querySelector("#commitBody"),
+  jolliMemory: document.querySelector("#jolliMemory"),
+  jolliMemoryStatus: document.querySelector("#jolliMemoryStatus"),
+  jolliMemoryContent: document.querySelector("#jolliMemoryContent"),
   changedFiles: document.querySelector("#changedFiles"),
   diffTitle: document.querySelector("#diffTitle"),
   diffStatus: document.querySelector("#diffStatus"),
@@ -583,10 +586,15 @@ async function loadCommit(commit) {
   els.commitSubject.textContent = "Loading commit…";
   els.commitMeta.textContent = "";
   els.changedFiles.textContent = "";
+  els.jolliMemory.hidden = false;
+  els.jolliMemoryStatus.textContent = "Loading…";
+  els.jolliMemoryContent.textContent = "";
   els.diffViewer.textContent = "Choose a changed file to view its patch.";
   renderGit(state.overview.git);
+  const memoryRequest = api("/api/git/memory", { projectRoot: DEFAULT_PROJECT_ROOT, commit }).catch(() => ({ available: false, memory: null }));
   try {
     const details = await api("/api/git/commit", { projectRoot: DEFAULT_PROJECT_ROOT, commit });
+    if (state.selectedCommit !== commit) return;
     els.commitSubject.textContent = details.subject;
     els.commitMeta.textContent = `${details.author} <${details.email}> · ${formatDate(details.date)}`;
     els.commitHash.textContent = details.shortHash;
@@ -610,6 +618,49 @@ async function loadCommit(commit) {
     els.commitSubject.textContent = "Could not load commit";
     els.commitMeta.textContent = error.message;
   }
+  const memory = await memoryRequest;
+  if (state.selectedCommit === commit) renderCommitMemory(memory);
+}
+
+function renderCommitMemory(result) {
+  const memory = result?.memory;
+  els.jolliMemoryContent.textContent = "";
+  els.jolliMemoryStatus.textContent = !result?.available ? "Unavailable" : !memory ? "No memory" : memory.generatedAt ? `Generated ${relativeDate(memory.generatedAt)}` : "";
+  if (!memory) return;
+  if (memory.recap) {
+    const recap = document.createElement("p");
+    recap.className = "jolli-recap";
+    recap.textContent = memory.recap;
+    els.jolliMemoryContent.append(recap);
+  }
+  for (const topic of memory.topics) {
+    const details = document.createElement("details");
+    details.className = "jolli-topic";
+    const summary = document.createElement("summary");
+    const title = document.createElement("strong");
+    title.textContent = topic.title;
+    summary.append(title);
+    for (const label of [topic.category, topic.importance].filter(Boolean)) {
+      const badge = document.createElement("span");
+      badge.textContent = label;
+      summary.append(badge);
+    }
+    details.append(summary);
+    appendMemoryText(details, "Context", topic.trigger);
+    appendMemoryText(details, "Implementation", topic.response);
+    appendMemoryText(details, "Decisions", topic.decisions);
+    if (topic.filesAffected.length) appendMemoryText(details, "Files", topic.filesAffected.join("\n"));
+    els.jolliMemoryContent.append(details);
+  }
+}
+
+function appendMemoryText(parent, label, value) {
+  if (!value) return;
+  const heading = document.createElement("strong");
+  heading.textContent = label;
+  const text = document.createElement("p");
+  text.textContent = value;
+  parent.append(heading, text);
 }
 
 function showGitPushConfirm() {

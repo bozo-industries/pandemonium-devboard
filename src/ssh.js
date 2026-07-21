@@ -250,7 +250,7 @@ async function githubText(relativePath) {
   const normalized = String(relativePath || "").replaceAll("\\", "/").replace(/^\/+/, "");
   if (!normalized) return "";
   if (githubTextCache.has(normalized)) return githubTextCache.get(normalized);
-  const response = await fetch(PANDEMONIUM_GITHUB_RAW_BASE + "/" + normalized.split("/").map(encodeURIComponent).join("/"), {
+  const response = await fetch(PANDEMONIUM_GITHUB_RAW_BASE + "/" + normalized.split("/").map(encodeURIComponent).join("/") + "?v=" + Date.now(), {
     headers: { "cache-control": "no-cache" }
   });
   if (!response.ok) {

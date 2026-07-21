@@ -13,7 +13,7 @@ export async function githubText(relativePath) {
     return textCache.get(normalized);
   }
 
-  const response = await fetch(`${PANDEMONIUM_GITHUB_RAW_BASE}/${encodeRepoPath(normalized)}`, {
+  const response = await fetch(`${PANDEMONIUM_GITHUB_RAW_BASE}/${encodeRepoPath(normalized)}?v=${Date.now()}`, {
     headers: { "cache-control": "no-cache" }
   });
   if (!response.ok) {
