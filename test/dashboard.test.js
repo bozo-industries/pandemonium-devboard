@@ -5,7 +5,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import test from "node:test";
 import { analyzeLoc, isTestPath } from "../src/loc.js";
-import { parseTokenUsage } from "../src/tokenUsage.js";
+import { parseProjectTokenUsage, parseTokenUsage } from "../src/tokenUsage.js";
 import { commitDetails, commitFileDiff, parseNumstat, recentCommits, safeRelativePath } from "../src/git.js";
 import { loadCommitMemory, normalizeCommitMemory } from "../src/jolli.js";
 import { normalizeSshTarget } from "../src/localSettings.js";
@@ -80,6 +80,55 @@ test("token usage parser normalizes totals and recent daily rows", () => {
   });
   assert.equal(result.daily[0].date, "2026-07-12");
   assert.deepEqual(result.daily[0].models, ["gpt-5-codex"]);
+});
+
+test("token usage parser scopes Codex sessions to local project attachment ids", () => {
+  const result = parseProjectTokenUsage({
+    sessions: [
+      {
+        sessionFile: "rollout-2026-08-02T00-52-08-019fbf87-1220-7d80-a5ae-fc82bbacf8db",
+        lastActivity: "2026-08-02T07:11:34.498Z",
+        models: { "gpt-5.6-sol": {} },
+        inputTokens: 100,
+        outputTokens: 20,
+        reasoningOutputTokens: 5,
+        cacheReadTokens: 300,
+        totalTokens: 420,
+        costUSD: 1.25
+      },
+      {
+        sessionFile: "rollout-2026-08-03T00-52-08-019fbf88-1220-7d80-a5ae-fc82bbacf8dc",
+        lastActivity: "2026-08-03T07:11:34.498Z",
+        models: { "gpt-5.5": {} },
+        inputTokens: 900,
+        outputTokens: 90,
+        cacheReadTokens: 9000,
+        totalTokens: 9990,
+        costUSD: 9
+      }
+    ]
+  }, new Set(["019fbf87-1220-7d80-a5ae-fc82bbacf8db"]), "C:\\Users\\user\\Code\\Pandemonium");
+
+  assert.equal(result.scope, "project");
+  assert.equal(result.matchedSessions, 1);
+  assert.deepEqual(result.totals, {
+    inputTokens: 100,
+    outputTokens: 20,
+    reasoningTokens: 5,
+    cacheReadTokens: 300,
+    totalTokens: 420,
+    costUSD: 1.25
+  });
+  assert.deepEqual(result.daily, [{
+    date: "2026-08-02",
+    models: ["gpt-5.6-sol"],
+    inputTokens: 100,
+    outputTokens: 20,
+    reasoningTokens: 5,
+    cacheReadTokens: 300,
+    totalTokens: 420,
+    costUSD: 1.25
+  }]);
 });
 
 test("Git history exposes commits, changed files, and bounded per-file patches", async () => {

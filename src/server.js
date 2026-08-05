@@ -58,7 +58,7 @@ const server = http.createServer(async (request, response) => {
       const [loc, git, tokens] = await Promise.allSettled([
         analyzeLoc(projectRoot),
         recentCommits(projectRoot, body.commitLimit),
-        loadTokenUsage()
+        loadTokenUsage(projectRoot)
       ]);
       return sendJson(response, 200, {
         projectRoot,
@@ -79,7 +79,8 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (url.pathname === "/api/overview/tokens" && request.method === "POST") {
-      return sendJson(response, 200, await loadTokenUsage());
+      const body = await readJsonBody(request);
+      return sendJson(response, 200, await loadTokenUsage(path.resolve(body.projectRoot || DEFAULT_PROJECT_ROOT)));
     }
 
     if (url.pathname === "/api/git/commit" && request.method === "POST") {

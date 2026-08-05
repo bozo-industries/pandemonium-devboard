@@ -341,7 +341,7 @@ async function loadOverview() {
   renderOverview();
   const requests = [
     loadOverviewPart(request, "loc", "/api/overview/loc", { projectRoot: DEFAULT_PROJECT_ROOT }, renderLoc),
-    loadOverviewPart(request, "tokens", "/api/overview/tokens", {}, renderTokens),
+    loadOverviewPart(request, "tokens", "/api/overview/tokens", { projectRoot: DEFAULT_PROJECT_ROOT }, renderTokens),
     loadOverviewPart(request, "git", "/api/overview/git", { projectRoot: DEFAULT_PROJECT_ROOT, commitLimit: 30 }, renderGit)
   ];
   await Promise.all(requests);
@@ -498,9 +498,10 @@ function renderTokens(result) {
     return;
   }
   const { totals, daily } = result.data;
+  const scopeLabel = result.data.scopeLabel || "All recorded Codex usage";
   els.tokenTotal.textContent = compactNumber(totals.totalTokens);
   els.tokenCost.textContent = formatCost(totals.costUSD);
-  els.tokenSplit.textContent = `${compactNumber(totals.inputTokens)} input · ${compactNumber(totals.outputTokens)} output · ${compactNumber(totals.cacheReadTokens)} cache`;
+  els.tokenSplit.textContent = `${scopeLabel} · ${compactNumber(totals.inputTokens)} input · ${compactNumber(totals.outputTokens)} output · ${compactNumber(totals.cacheReadTokens)} cache`;
   const items = [
     ["Input", totals.inputTokens], ["Output", totals.outputTokens],
     ["Reasoning", totals.reasoningTokens], ["Cache read", totals.cacheReadTokens]

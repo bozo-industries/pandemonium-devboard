@@ -47,7 +47,7 @@ Use **Detect** to inspect `pandemonium.service` through systemd. Detection check
 
 - LOC analysis reads only Pandemonium code under `src/` (TypeScript, Python, and SQL), excluding documentation, Todo files, manifests, and configuration.
 - Git operations use fixed argument arrays, validated commit IDs and relative paths, timeouts, and a 4 MB output limit.
-- Token usage invokes `npx ccusage codex daily --json`; a failure is isolated to that card instead of breaking the rest of the overview.
+- Token usage invokes `npx ccusage codex session --json` when the selected checkout has `.codex-remote-attachments` markers so Codex sessions can be scoped to that project; otherwise it falls back to `npx ccusage codex daily --json`. A failure is isolated to that card instead of breaking the rest of the overview.
 - Environment writes remain scoped to the selected project root or configured SSH env paths.
 
 ## Test
