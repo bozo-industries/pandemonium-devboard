@@ -5,7 +5,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import test from "node:test";
 import { analyzeLoc, isTestPath } from "../src/loc.js";
-import { parseProjectTokenUsage, parseTokenUsage } from "../src/tokenUsage.js";
+import { loadCodexSessionTitles, parseProjectTokenUsage, parseTokenUsage } from "../src/tokenUsage.js";
 import { commitDetails, commitFileDiff, parseNumstat, recentCommits, safeRelativePath } from "../src/git.js";
 import { loadCommitMemory, normalizeCommitMemory } from "../src/jolli.js";
 import { normalizeSshTarget } from "../src/localSettings.js";
@@ -82,7 +82,7 @@ test("token usage parser normalizes totals and recent daily rows", () => {
   assert.deepEqual(result.daily[0].models, ["gpt-5-codex"]);
 });
 
-test("token usage parser scopes Codex sessions to local project attachment ids", () => {
+test("token usage parser scopes Codex sessions to local project attachment ids and titles", () => {
   const result = parseProjectTokenUsage({
     sessions: [
       {
@@ -97,6 +97,17 @@ test("token usage parser scopes Codex sessions to local project attachment ids",
         costUSD: 1.25
       },
       {
+        sessionFile: "rollout-2026-08-02T10-52-08-019fbf89-1220-7d80-a5ae-fc82bbacf8dd",
+        lastActivity: "2026-08-02T10:11:34.498Z",
+        models: { "gpt-5.6-sol": {} },
+        inputTokens: 40,
+        outputTokens: 8,
+        reasoningOutputTokens: 1,
+        cacheReadTokens: 90,
+        totalTokens: 138,
+        costUSD: 0.5
+      },
+      {
         sessionFile: "rollout-2026-08-03T00-52-08-019fbf88-1220-7d80-a5ae-fc82bbacf8dc",
         lastActivity: "2026-08-03T07:11:34.498Z",
         models: { "gpt-5.5": {} },
@@ -107,20 +118,41 @@ test("token usage parser scopes Codex sessions to local project attachment ids",
         costUSD: 9
       }
     ]
-  }, new Set(["019fbf87-1220-7d80-a5ae-fc82bbacf8db"]), "C:\\Users\\user\\Code\\Pandemonium");
+  }, new Set([
+    "019fbf87-1220-7d80-a5ae-fc82bbacf8db",
+    "019fbf89-1220-7d80-a5ae-fc82bbacf8dd"
+  ]), "C:\\Users\\user\\Code\\Pandemonium", new Map([
+    ["019fbf87-1220-7d80-a5ae-fc82bbacf8db", "Klarna x Finance Integration"],
+    ["019fbf89-1220-7d80-a5ae-fc82bbacf8dd", "Finance follow-up"]
+  ]));
 
   assert.equal(result.scope, "project");
-  assert.equal(result.matchedSessions, 1);
+  assert.equal(result.matchedSessions, 2);
   assert.deepEqual(result.totals, {
-    inputTokens: 100,
-    outputTokens: 20,
-    reasoningTokens: 5,
-    cacheReadTokens: 300,
-    totalTokens: 420,
-    costUSD: 1.25
+    inputTokens: 140,
+    outputTokens: 28,
+    reasoningTokens: 6,
+    cacheReadTokens: 390,
+    totalTokens: 558,
+    costUSD: 1.75
   });
   assert.deepEqual(result.daily, [{
     date: "2026-08-02",
+    lastActivity: "2026-08-02T10:11:34.498Z",
+    sessionId: "019fbf89-1220-7d80-a5ae-fc82bbacf8dd",
+    label: "Finance follow-up",
+    models: ["gpt-5.6-sol"],
+    inputTokens: 40,
+    outputTokens: 8,
+    reasoningTokens: 1,
+    cacheReadTokens: 90,
+    totalTokens: 138,
+    costUSD: 0.5
+  }, {
+    date: "2026-08-02",
+    lastActivity: "2026-08-02T07:11:34.498Z",
+    sessionId: "019fbf87-1220-7d80-a5ae-fc82bbacf8db",
+    label: "Klarna x Finance Integration",
     models: ["gpt-5.6-sol"],
     inputTokens: 100,
     outputTokens: 20,
@@ -129,6 +161,25 @@ test("token usage parser scopes Codex sessions to local project attachment ids",
     totalTokens: 420,
     costUSD: 1.25
   }]);
+});
+
+test("token usage titles fall back to first real Codex user prompt", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-dashboard-codex-titles-"));
+  const sessionFile = "rollout-2026-08-02T00-52-08-019fbf87-1220-7d80-a5ae-fc82bbacf8db";
+  const sessionDir = path.join(root, "sessions", "2026", "08", "02");
+  await fs.mkdir(sessionDir, { recursive: true });
+  await fs.writeFile(path.join(root, "session_index.jsonl"), "", "utf8");
+  await fs.writeFile(path.join(sessionDir, `${sessionFile}.jsonl`), [
+    JSON.stringify({ type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "<recommended_plugins>\nignore me" }, { type: "input_text", text: "AGENTS.md instructions\nignore me too" }] } }),
+    JSON.stringify({ type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "Fix the Finance dashboard ccusage names please" }] } })
+  ].join("\n"), "utf8");
+
+  const titles = await loadCodexSessionTitles([{
+    sessionFile,
+    sessionId: `2026/08/02/${sessionFile}`
+  }], path.join(root, "session_index.jsonl"), root);
+
+  assert.equal(titles.get("019fbf87-1220-7d80-a5ae-fc82bbacf8db"), "Fix the Finance dashboard ccusage names...");
 });
 
 test("Git history exposes commits, changed files, and bounded per-file patches", async () => {

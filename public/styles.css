@@ -1383,7 +1383,7 @@ body.overview-active .overview {
 
 .daily-title,
 .daily-row {
-  grid-template-columns: minmax(70px, 1fr) repeat(4, 54px);
+  grid-template-columns: minmax(0, 1fr) repeat(4, 54px);
 }
 
 .daily-title {
@@ -1413,12 +1413,15 @@ body.overview-active .overview {
 
 .daily-row span {
   min-width: 0;
-  overflow: visible;
+  overflow: hidden;
   color: var(--text);
   font-weight: 800;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.daily-title span:first-child,
+.daily-row span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .daily-row span:first-child { color: var(--muted); font-weight: 500; }
 .daily-row span:nth-child(2) { color: var(--green); }
 .daily-row span:nth-child(3) { color: var(--cyan); }

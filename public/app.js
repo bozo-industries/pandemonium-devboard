@@ -498,6 +498,7 @@ function renderTokens(result) {
     return;
   }
   const { totals, daily } = result.data;
+  const sessionScoped = result.data.scope === "project";
   const scopeLabel = result.data.scopeLabel || "All recorded Codex usage";
   els.tokenTotal.textContent = compactNumber(totals.totalTokens);
   els.tokenCost.textContent = formatCost(totals.costUSD);
@@ -516,7 +517,7 @@ function renderTokens(result) {
   if (daily.length) {
     const title = document.createElement("div");
     title.className = "daily-title";
-    for (const label of ["Recent days", "Input", "Output", "Cache", "Price"]) {
+    for (const label of [sessionScoped ? "Recent chats" : "Recent days", "Input", "Output", "Cache", "Price"]) {
       const cell = document.createElement("span");
       cell.textContent = label;
       title.append(cell);
@@ -525,15 +526,17 @@ function renderTokens(result) {
     for (const day of daily) {
       const item = document.createElement("div");
       item.className = "daily-row";
-      for (const value of [
-        day.date,
+      const rowLabel = day.label || day.date;
+      for (const [index, value] of [
+        rowLabel,
         compactNumber(day.inputTokens),
         compactNumber(day.outputTokens),
         compactNumber(day.cacheReadTokens),
         formatCost(day.costUSD)
-      ]) {
+      ].entries()) {
         const cell = document.createElement("span");
         cell.textContent = value;
+        if (index === 0 && day.date && rowLabel !== day.date) cell.title = day.date;
         item.append(cell);
       }
       els.tokenDaily.append(item);
